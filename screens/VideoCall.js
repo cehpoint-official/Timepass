@@ -3,6 +3,7 @@ import React, { useState, useEffect, useReducer, useRef } from 'react';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { set } from 'mongoose';
 import Gifts from './components/gifts';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const VideoCall = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -25,7 +26,11 @@ const VideoCall = () => {
       <Text style={{ color: "white", fontSize: 18, fontWeight: "bold", margin: 10 }}>Frineds Making Rooms</Text>
       <View style={{ flexDirection: "row", margin: 10, alignItems: "center" }}>
         <Icon name={"circle"} size={15} color="red" />
-        <Text style={{ color: "red", fontWeight: "bold", fontSize: 16 }}>Live</Text>
+        <Text style={{ color: "red", fontWeight: "bold", fontSize: 16,marginHorizontal:5 }}>Live</Text>
+        <TouchableOpacity style={{marginLeft:10}} ><Image style={{ width: 35, height: 35, marginRight: 20, }} source={require("../assets/images/gift.png")} /></TouchableOpacity>
+        <Image style={{ width: 25, height: 25,}} source={require("../assets/images/refer.png")} />
+        <Text style={{ color:"white", fontWeight: "bold", fontSize: 16,marginHorizontal:5 }}>200.00k</Text>
+        
       </View>
 
       <View style={{ width: "98%", height: 200, backgroundColor: " rgba(255, 255, 255, 0.2)", justifyContent: "center", alignItems: "center" }}>
@@ -44,6 +49,11 @@ const VideoCall = () => {
             <Image style={{ width: 60, height: 60 }} source={require("../assets/images/avatar2.png")} />
           </View>
           <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>puja</Text>
+          <View style={styles.deletemic}>
+             <Icon name="microphone" size={20} color="rgba(255,255,255,.8)"/>
+             <MaterialCommunityIcons name="delete" size={20} color="red"/>
+             <MaterialCommunityIcons name="karate" size={20} color="rgba(255,255,255,.8)"/>
+          </View>
         </View>
         <View style={styles.box1} >
           <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: "black", justifyContent: "center", alignItems: "center" }}>
@@ -53,6 +63,11 @@ const VideoCall = () => {
           </View>
           <View style={{ marginTop: -70 }}><Icon name="microphone-slash" size={70} color="grey" /></View>
           <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>priya</Text>
+          <View style={styles.deletemic}>
+             <Icon name="microphone" size={20} color="rgba(255,255,255,.8)"/>
+             <MaterialCommunityIcons name="delete" size={20} color="red"/>
+             <MaterialCommunityIcons name="karate" size={20} color="rgba(255,255,255,.8)"/>
+          </View>
         </View>
       </View>
       <ScrollView contentContainerStyle={styles.scrollViewContainer}>
@@ -101,6 +116,12 @@ const styles = StyleSheet.create({
 
     marginTop: 4,
     marginRight: 4
+  },
+  deletemic:{
+    width:150,
+    height:25,
+    justifyContent:"space-evenly"
+    ,flexDirection:"row",marginTop:10
   }
 })
 

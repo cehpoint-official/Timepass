@@ -27,6 +27,7 @@ import OtpAuthentication from './screens/OtpAuthentication'
 import DeleteAcoount from './screens/DeleteAccount'
 import DeleteAccount from './screens/DeleteAccount'
 import CreatePage from './screens/CreatePage'
+import PrivateRoom from './screens/PrivateRoom'
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const CustomTabBarIcon = ({ name, focused }) => (
@@ -45,7 +46,7 @@ const App = () => {
   return (
     <>
       <NavigationContainer>
-        <Stack.Navigator initialRouteName="Welcome">
+        <Stack.Navigator initialRouteName="Splash">
           <Stack.Screen name="Splash" component={Splash} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
           <Stack.Screen name="OtpAuthentication" component={OtpAuthentication} options={{ headerShown: false }} />
@@ -57,6 +58,7 @@ const App = () => {
           <Stack.Screen name="Coins" component={Coins} options={{ headerShown: false }} />
           <Stack.Screen name="VideoCall" component={VideoCall} options={{ headerShown: false }} />
           <Stack.Screen name="ExpertProfile" component={Expertprofile} options={{ headerShown: false }} />
+          <Stack.Screen name="PrivateRoom" component={PrivateRoom} options={{ headerShown: false }} />
           <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
           <Stack.Screen name="Language" component={LanguagePicker} options={{ headerShown: false }} />
           <Stack.Screen name="Setting" component={Settings} options={{ headerShown: false }} />
