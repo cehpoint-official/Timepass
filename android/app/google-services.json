@@ -7,18 +7,18 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:262634270025:android:c273dae5d74220f3aafe98",
+        "mobilesdk_app_id": "1:262634270025:android:5fc8b9f05fdf3a64aafe98",
         "android_client_info": {
-          "package_name": "com.timepass"
+          "package_name": "com.cehpoint.timepass"
         }
       },
       "oauth_client": [
         {
-          "client_id": "262634270025-cedhqc25f0so6tngsqc4v3jrnsp14s7c.apps.googleusercontent.com",
+          "client_id": "262634270025-5t6a803a4hgb20cgmav4r82uescionac.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.timepass",
-            "certificate_hash": "eb65b004761ce8f4d1685f88834ba21b00cb4286"
+            "package_name": "com.cehpoint.timepass",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
           }
         },
         {

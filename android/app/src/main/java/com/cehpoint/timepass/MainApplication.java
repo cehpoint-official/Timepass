@@ -1,4 +1,4 @@
-package com.timepass;
+package com.cehpoint.timepass;
 
 import android.app.Application;
 import com.facebook.react.PackageList;
