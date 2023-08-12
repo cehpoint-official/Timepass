@@ -1,4 +1,4 @@
-package com.timepass;
+package com.cehpoint.timepass;
 
 import com.facebook.react.ReactActivity;
 import com.facebook.react.ReactActivityDelegate;
