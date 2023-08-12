@@ -29,7 +29,7 @@ import DeleteAccount from './screens/DeleteAccount';
 import CreatePage from './screens/CreatePage';
 import PrivateRoom from './screens/PrivateRoom';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
-import {AuthProvider} from './providers/auth_provider';
+import {AuthProvider} from './providers/AuthProvider';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
