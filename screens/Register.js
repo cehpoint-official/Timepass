@@ -13,6 +13,7 @@ const Register = () => {
   const [nickname, setNickname] = useState("")
   const [Phone, setPhone] = useState("")
   const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [role, setrole] = useState("user")
   const { user } = useAuthContext();
 
 
@@ -41,10 +42,12 @@ const Register = () => {
     console.log(nickname);
     console.log(Phone);
     console.log(selectedLanguage);
+    console.log(role);
     const data = {
       name: nickname,
       phone: Phone,
-      language: selectedLanguage
+      language: selectedLanguage,
+      role:role
     };
     console.log(user.auth.uid);
      await firebase.firestore().collection('users').doc(user.auth.uid).set(data).then((res)=>{
@@ -135,6 +138,19 @@ const Register = () => {
             <Picker.Item label="Turkish" value="tr" />
             <Picker.Item label="Dutch" value="nl" />
             {/* Add more language options as needed */}
+          </Picker>
+          <Text style={styles.label}>Select Role:</Text>
+          <Picker
+            selectedValue={role}
+            onValueChange={(role)=>{setrole(role)}}
+            style={[styles.input, { borderRadius: 20 }]}
+            itemStyle={{ borderRadius: 20 }}
+            
+          >
+      
+            <Picker.Item label="User" value="user" />
+            <Picker.Item label="Influencer" value="influencer" />
+      
           </Picker>
 
           <View style={styles.doneButton}>
