@@ -1,12 +1,29 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native'
-import React from 'react'
+import React, { useState } from 'react'
 import LinearGradient from 'react-native-linear-gradient'
 import { useNavigation } from '@react-navigation/native'
+import { firebase } from '@react-native-firebase/firestore';
+import { useAuthContext } from '../providers/AuthProvider';
 
 const Terms = () => {
+    const { user } = useAuthContext();
     const navigation = useNavigation();
-    const goto = () => {
-        navigation.navigate('Register');
+    const [gender, setgender] = useState("")
+    const goto = async () => {
+
+   
+        console.log(gender);
+        data={
+            gender:gender
+        }
+        await firebase.firestore().collection('users').doc(user.auth.uid).update(data).then((res)=>{
+            console.log(res);
+            navigation.navigate('Tabs');
+      
+           }).catch((err)=>{
+            console.log(err);
+           })
+        
     }
 
     return (
@@ -21,19 +38,26 @@ const Terms = () => {
             <Text style={styles.heading}>SELECT YOUR GENDER</Text>
             <Text style={styles.text}>Gender Reminder: Choose your gender carefully as it cannot be altered later. Incorrect registration may impact your experience and eligibility.</Text>
 
-            <View style={styles.gender}>
+            <View style={styles.gender}
+            
+            >
                 <View >
-                    <Image style={{ width: 80, height: 80, marginBottom: 10 }} source={require("../assets/images/female.png")} />
-                    <View style={styles.button}>
+                    <Image style={{ width: 80, height: 80, marginBottom: 10 }} source={require("../assets/images/female.png")}  />
+                    <View style={styles.button}
+                    
+                    >
 
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={()=>setgender("Female")} >
                             <Text style={styles.text1}>Female</Text>
                         </TouchableOpacity>
                     </View></View>
-                <View>
+                <View   >
 
-                    <Image style={{ width: 80, height: 80, marginBottom: 10 }} source={require("../assets/images/male.png")} />
-                    <View style={styles.button1}><TouchableOpacity><Text style={styles.text1}>Male</Text></TouchableOpacity></View>
+                    <Image style={{ width: 80, height: 80, marginBottom: 10 }} source={require("../assets/images/male.png")}  />
+                    <View style={styles.button1}><TouchableOpacity onPress={()=>setgender("Male")} ><Text style={styles.text1}
+                    
+                   
+                     >Male</Text></TouchableOpacity></View>
 
                 </View></View>
             <View style={styles.doneButton}><TouchableOpacity onPress={goto}><Text style={{ fontSize: 22, fontWeight: "bold", color: "white" }}>Done</Text></TouchableOpacity></View>

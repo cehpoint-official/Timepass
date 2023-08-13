@@ -12,7 +12,7 @@ export const AuthProvider = ({children}) => {
 
   const refreshUserProfile = async (uid) => {
     await firebase.firestore().collection('users').doc(uid).get().then(data => {
-      console.log('AAAAAAAAAAAAAAAAAAnik RENDI', data.data());
+      console.log('AAAAAAAAAAAAAAAAAAnik RENDI', uid , data.data());
       if (!data.data()) return;
       setUser(prev => ({ ...prev, profile: data.data() }));  
     });
@@ -24,7 +24,7 @@ export const AuthProvider = ({children}) => {
         console.log('User logged in');
         setUser({ auth: cUser });
         await firebase.firestore().collection('users').doc(cUser.uid).get().then(data => {
-          console.log('AAAAAAAAAAAAAAAAAAnik RENDI', data);
+          console.log('Anik RENDI', data.data());
           if (!data.data()) return;
           setUser(prev => ({ ...prev, profile: data.data() }));  
         });

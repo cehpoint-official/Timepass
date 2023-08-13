@@ -1,15 +1,67 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput,ToastAndroid } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native'
+ 
+import { useAuthContext } from '../providers/AuthProvider';
+import { firebase } from '@react-native-firebase/firestore';
+;
 
 const Register = () => {
   const navigation = useNavigation();
-  const goto = () => {
-    navigation.navigate("OtpAuthentication")
+  const [nickname, setNickname] = useState("")
+  const [Phone, setPhone] = useState("")
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const { user } = useAuthContext();
+
+
+  const  goto = async () => {
+
+    if(nickname===null || nickname===""){
+      ToastAndroid.showWithGravity(  
+        "Enter Valid username",  
+        ToastAndroid.SHORT,  
+        ToastAndroid.CENTER  
+      ); 
+      return;
+    }
+    const my_regex_pattern = /^[0-9]{10}$/;
+    console.log(my_regex_pattern.test(Phone));
+    
+    if (!Phone || !my_regex_pattern.test(Phone)) {
+      ToastAndroid.showWithGravity(  
+        "Enter Valid 10-Digit Phone Number",  
+        ToastAndroid.SHORT,  
+        ToastAndroid.CENTER  
+      ); 
+    } else {
+      console.log("Valid phone number");
+    }
+    console.log(nickname);
+    console.log(Phone);
+    console.log(selectedLanguage);
+    const data = {
+      name: nickname,
+      phone: Phone,
+      language: selectedLanguage
+    };
+    console.log(user.auth.uid);
+     await firebase.firestore().collection('users').doc(user.auth.uid).set(data).then((res)=>{
+      console.log(res);
+    navigation.navigate("Terms")
+
+     }).catch((err)=>{
+      console.log(err);
+     })
+    
+
+  
+
+
+    
   }
-  const [selectedLanguage, setSelectedLanguage] = useState('');
+ 
 
   const handleLanguageChange = (value) => {
     setSelectedLanguage(value);
@@ -44,6 +96,7 @@ const Register = () => {
             placeholder="Enter your name"
             placeholderTextColor="rgba(255, 255, 255, 0.8)"
             underlineColorAndroid="transparent"
+            onChangeText={(text) => setNickname(text)}
           />
           <Text style={styles.label}>Phone number:</Text>
           <TextInput
@@ -52,6 +105,9 @@ const Register = () => {
             placeholder="Enter your mobile number"
             placeholderTextColor="rgba(255, 255, 255, 0.8)"
             underlineColorAndroid="transparent"
+            onChangeText={(text) => setPhone(text)}
+            inputMode='numeric'
+            
           />
           <Text style={styles.label}>Select Language:</Text>
           <Picker
@@ -59,6 +115,7 @@ const Register = () => {
             onValueChange={handleLanguageChange}
             style={[styles.input, { borderRadius: 20 }]}
             itemStyle={{ borderRadius: 20 }}
+            
           >
             <Picker.Item label="Select language" value="" />
             <Picker.Item label="Select language" value="" />
