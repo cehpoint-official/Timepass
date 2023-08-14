@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuthContext } from '../providers/AuthProvider';
 
 const Splash = () => {
+  
   const navigation = useNavigation();
   const { user } = useAuthContext();
 
@@ -17,7 +18,6 @@ const Splash = () => {
       } else {
         navigation.navigate('Tabs');
       }
-      
     }, 3000);
 
     return () => {
