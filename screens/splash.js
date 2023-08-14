@@ -11,10 +11,22 @@ const Splash = () => {
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (user.auth == null) {
+      console.log("here",user.profile);
+
+     
+      
+      if (!user.auth  ) {
+     
+       
         navigation.navigate('Login');
-      } else if (user.profile == null) {
+
+        
+      } else if (!user.profile || !user.profile.name ) {
+        
+
         navigation.navigate('Register');
+       
+        
       } else {
         navigation.navigate('Tabs');
       }

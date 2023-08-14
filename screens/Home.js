@@ -1,10 +1,28 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native'
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
+import { useAuthContext } from '../providers/AuthProvider';
+import { firebase } from '@react-native-firebase/firestore';
 const Home = () => {
   const navigation = useNavigation();
+  const { user } = useAuthContext();
+  const [Name, setName] = useState("")
+  
+
+  useEffect(async () => {
+    await firebase.firestore().collection('users').doc(user.auth.uid).get().then((res)=>{
+    
+      setName(res._data.name)
+   
+
+     }).catch((err)=>{
+      console.log(err);
+     })
+  
+  }, [])
+  
   const goto = () => {
     navigation.navigate("Profile");
   }
@@ -37,7 +55,7 @@ const Home = () => {
             <Image style={{ width: 45, height: 45 }} source={require("../assets/images/avatar.png")} />
 
           </TouchableOpacity>
-          <Text style={{ fontSize: 18, color: "white", fontWeight: "bold" }}>Hello User</Text>
+          <Text style={{ fontSize: 18, color: "white", fontWeight: "bold" }}>Hello {Name}</Text>
           <TouchableOpacity onPress={gotocoin} style={{ marginLeft: "auto", marginRight: 10 }}><Image style={{ width: 125, height: 27, }} source={require("../assets/images/framecup.png")} /></TouchableOpacity>
         </View>
         </View>
