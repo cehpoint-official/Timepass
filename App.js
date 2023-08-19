@@ -20,11 +20,9 @@ import SelectLanguage from './screens/SelectLanguage';
 import Expertprofile from './screens/Expertprofile';
 import Profile from './screens/Profile';
 import Settings from './screens/Settings';
-import {useNavigation} from '@react-navigation/native';
 import LanguagePicker from './screens/SelectLanguage';
 import Register from './screens/Register';
 import OtpAuthentication from './screens/OtpAuthentication';
-import DeleteAcoount from './screens/DeleteAccount';
 import DeleteAccount from './screens/DeleteAccount';
 import CreatePage from './screens/CreatePage';
 import PrivateRoom from './screens/PrivateRoom';
@@ -127,7 +125,7 @@ const App = () => {
               options={{headerShown: false}}
             />
             <Stack.Screen
-              name="Setting"
+              name="Settings"
               component={Settings}
               options={{headerShown: false}}
             />
@@ -189,7 +187,7 @@ function TabNavigator() {
       />
 
       <Tab.Screen
-        name="Settings"
+        name="GroupCall2"
         component={GroupCall2}
         options={{
           tabBarIcon: ({focused}) => (

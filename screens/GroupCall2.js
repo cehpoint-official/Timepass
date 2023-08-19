@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
-import React ,{useState}from 'react';
+import React ,{useEffect, useRef, useState}from 'react';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import backgroundimage from '../assets/images/backgorund.jpg';
 
