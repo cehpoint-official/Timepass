@@ -39,7 +39,6 @@ const VideoCall = () => {
         });
         setPeers((prev) => ({ ...prev, [peerId]: peerConnection }));
       });
-
       socket.emit("joinCall", roomId);
     };
     getMediaStream();
