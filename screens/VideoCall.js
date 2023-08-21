@@ -7,47 +7,148 @@ import {
   TouchableOpacity,
   Modal,
 } from "react-native";
-import React, { useState, useEffect, useReducer, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Icon from "react-native-vector-icons/FontAwesome";
-import { set } from "mongoose";
 import Gifts from "./components/gifts";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { mediaDevices, RTCPeerConnection, RTCView } from "react-native-webrtc";
+import Peer from "simple-peer";
 import io from "socket.io-client";
+import { firebase } from "@react-native-firebase/firestore";
+import { useAuthContext } from "../providers/AuthProvider";
 
-const baseUrl = "ws://192.168.1.2:8080";
+const baseUrl = "ws://192.168.1.6:8080";
 const socket = io(baseUrl, { autoConnect: false });
+
+const StageParticipant = ({ name, peer }) => {
+  const ref = useRef();
+  useEffect(() => {
+    peer.on("stream", (stream) => {
+      console.log("stream", stream);
+      ref.current.srcObject = stream;
+    });
+  }, [peer]);
+  return (
+    <RTCView ref={ref} style={styles.box1}>
+      <View
+        style={{
+          width: 100,
+          height: 100,
+          borderRadius: 50,
+          backgroundColor: "black",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Image
+          style={{ width: 60, height: 60, opacity: 0.5 }}
+          source={require("../assets/images/avatar2.png")}
+        />
+      </View>
+      <View style={{ marginTop: -70 }}>
+        <Icon name="microphone-slash" size={70} color="grey" />
+      </View>
+      <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
+        {name}
+      </Text>
+      <View style={styles.deletemic}>
+        <Icon name="microphone" size={20} color="rgba(255,255,255,.8)" />
+        <MaterialCommunityIcons name="delete" size={20} color="red" />
+        <MaterialCommunityIcons
+          name="karate"
+          size={20}
+          color="rgba(255,255,255,.8)"
+        />
+      </View>
+    </RTCView>
+  );
+};
 
 const VideoCall = () => {
   const roomId = "ddd";
-  const [modalVisible, setModalVisible] = useState(false);
-  const [peers, setPeers] = useState({});
-  const [mediaStream, setMediaStream] = useState(null);
+  const [peers, setPeers] = useState([]);
+  const socketRef = useRef();
+  const userVideo = useRef();
+  const peersRef = useRef([]);
+  const streamRef = useRef();
+  const { user } = useAuthContext();
+  const [participant1, setParticipant1] = useState();
+  const [participant2, setParticipant2] = useState();
 
   useEffect(() => {
-    const getMediaStream = async () => {
-      const stream = await mediaDevices.getUserMedia({
-        audio: true,
-      });
-      console.log(stream.toURL());
-      setMediaStream(stream);
-      socket.connect();
-      socket.on("audioStream", ({ peerId, stream }) => {
-        const peerConnection = new RTCPeerConnection();
-        peerConnection.addStream(stream, {
-          roomId: roomId,
+    socketRef.current = io.connect("/");
+    socketRef.current.emit("join room", roomId);
+    socketRef.current.on("all users", (users) => {
+      const peers = [];
+      users.forEach((userID) => {
+        const peer = createPeer(userID, socketRef.current.id, stream);
+        peersRef.current.push({
+          peerID: userID,
+          peer,
         });
-        setPeers((prev) => ({ ...prev, [peerId]: peerConnection }));
+        peers.push(peer);
       });
-      socket.emit("joinCall", roomId);
-    };
-    getMediaStream();
-    return () => {
-      socket.disconnect();
-      if (mediaStream) {
-        return mediaStream.release();
+      setPeers(peers);
+    });
+
+    socketRef.current.on("user joined", (payload) => {
+      const peer = addPeer(payload.signal, payload.callerID, stream);
+      peersRef.current.push({
+        peerID: payload.callerID,
+        peer,
+      });
+      setPeers((users) => [...users, peer]);
+    });
+    socketRef.current.on("receiving returned signal", (payload) => {
+      const item = peersRef.current.find((p) => p.peerID === payload.id);
+      item.peer.signal(payload.signal);
+    });
+  }, []);
+
+  function createPeer(userToSignal, callerID, stream) {
+    const peer = new Peer({
+      initiator: true,
+      trickle: false,
+      stream,
+    });
+
+    peer.on("signal", (signal) => {
+      socketRef.current.emit("sending signal", {
+        userToSignal,
+        callerID,
+        signal,
+      });
+    });
+
+    return peer;
+  }
+
+  function addPeer(incomingSignal, callerID, stream) {
+    const peer = new Peer({
+      initiator: false,
+      trickle: false,
+      stream,
+    });
+    peer.on("signal", (signal) => {
+      socketRef.current.emit("returning signal", { signal, callerID });
+    });
+    peer.signal(incomingSignal);
+    return peer;
+  }
+
+  useEffect(() => {
+    let unsub = firebase.firestore().collection("rooms").doc(roomId).onSnapshot((doc) => {
+      let roomData = doc.data();
+      setParticipant1(roomData.participant1);
+      setParticipant2(roomData.participant2);
+      if ([roomData.participant1, roomData.participant2].includes(user.auth.uid)) {
+        navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((stream) => {
+          streamRef.current = stream;
+          userVideo.current.srcObject = stream;
+        });
       }
-    };
+    });
+    return () => unsub();
   }, []);
 
   const data = [
@@ -65,7 +166,6 @@ const VideoCall = () => {
 
   return (
     <View style={styles.container}>
-      {mediaStream && <RTCView streamURL={mediaStream.toURL()} />}
       <Text
         style={{ color: "white", fontSize: 18, fontWeight: "bold", margin: 10 }}
       >
@@ -104,7 +204,6 @@ const VideoCall = () => {
           200.00k
         </Text>
       </View>
-
       <View
         style={{
           width: "98%",
@@ -136,67 +235,8 @@ const VideoCall = () => {
       </View>
 
       <View style={{ flexDirection: "row" }}>
-        <View style={styles.box1}>
-          <View
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: 50,
-              backgroundColor: "black",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Image
-              style={{ width: 60, height: 60 }}
-              source={require("../assets/images/avatar2.png")}
-            />
-          </View>
-          <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
-            puja
-          </Text>
-          <View style={styles.deletemic}>
-            <Icon name="microphone" size={20} color="rgba(255,255,255,.8)" />
-            <MaterialCommunityIcons name="delete" size={20} color="red" />
-            <MaterialCommunityIcons
-              name="karate"
-              size={20}
-              color="rgba(255,255,255,.8)"
-            />
-          </View>
-        </View>
-        <View style={styles.box1}>
-          <View
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: 50,
-              backgroundColor: "black",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Image
-              style={{ width: 60, height: 60, opacity: 0.5 }}
-              source={require("../assets/images/avatar2.png")}
-            />
-          </View>
-          <View style={{ marginTop: -70 }}>
-            <Icon name="microphone-slash" size={70} color="grey" />
-          </View>
-          <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
-            priya
-          </Text>
-          <View style={styles.deletemic}>
-            <Icon name="microphone" size={20} color="rgba(255,255,255,.8)" />
-            <MaterialCommunityIcons name="delete" size={20} color="red" />
-            <MaterialCommunityIcons
-              name="karate"
-              size={20}
-              color="rgba(255,255,255,.8)"
-            />
-          </View>
-        </View>
+        <StageParticipant name={participant1} peer={ peers.find(peer => peer.id === participant1.peerId)} />
+        <StageParticipant name={participant2} peer={ peers.find(peer => peer.id === participant2.peerId) } />
       </View>
       <ScrollView contentContainerStyle={styles.scrollViewContainer}>
         <View style={{ flex: 1 }}>
