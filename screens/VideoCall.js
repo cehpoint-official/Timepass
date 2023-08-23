@@ -6,33 +6,62 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
+  Dimensions,
 } from "react-native";
 import React, { useState, useEffect, useRef } from "react";
 import Icon from "react-native-vector-icons/FontAwesome";
 import Gifts from "./components/gifts";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
-import { RTCView } from "react-native-webrtc";
+import { RTCView, mediaDevices } from "react-native-webrtc";
 import { SimplePeer } from "simple-peer";
 import io from "socket.io-client";
 import { firebase } from "@react-native-firebase/firestore";
 import { useAuthContext } from "../providers/AuthProvider";
 import { useRoute } from "@react-navigation/native";
+import Sound from 'react-native-sound';
 
+const screenHeight = Dimensions.get('window').height;
 const baseUrl = "ws://192.168.1.14:8080";
+//const baseUrl = "ws://172.16.2.38:8080";
 
 const StageParticipant = ({ participant }) => {
   const { name, peer, socketId, userId } = participant;
   const {user} = useAuthContext();
   const ref = useRef();
+  const soundRef = useRef();
+
   useEffect(() => {
     if (user.auth.uid === userId) return;
+    console.log('PARTICIPANT',participant);
     peer.on("stream", (stream) => {
       console.log("stream", stream);
       ref.current.srcObject = stream;
+      soundRef.current = new Sound(
+        ref.current, null, err => {
+          if (err) {
+            console.log('Error loading sound');
+          } else {
+            soundRef.current.play(success => {
+              if (success) {
+                console.log('Successfully finished playing');
+              } else {
+                console.log('Playback failed');
+              }
+            });
+          }
+        }
+      );
     });
+    return () => {
+      if (this.sound) {
+        this.sound.stop(() => {
+          console.log('Sound stopped');
+        });
+      }
+    }
   }, [peer]);
   return (
-    <RTCView ref={ref} style={styles.box1}>
+    <View ref={ref} style={styles.box1}>
       <View
         style={{
           width: 100,
@@ -63,48 +92,121 @@ const StageParticipant = ({ participant }) => {
           color="rgba(255,255,255,.8)"
         />
       </View>
-    </RTCView>
+    </View>
   );
 };
 
-const WaitlistModal = ({visible, onClose, roomId}) => {
+
+const WaitlistModal = ({visible, onClose, roomId, onAddToStage}) => {
   const [waitlist, setWaitlist] = useState([]);
   useEffect(() => {
     let unsub = firebase.firestore().collection('rooms').doc(roomId).collection('waitlist').onSnapshot((snap) => {
       let newWaitlist = [];
       snap.docs.forEach((doc) =>
-        newWaitlist.push({userId: doc.id, ...doc.data()})
+      newWaitlist.push({userId: doc.id, ...doc.data()})
       );
       setWaitlist(newWaitlist);
     });
     return () => unsub();
   }, []);
-  return  (<Modal
-    animationType="slide"
-    visible={visible} onRequestClose={onClose}
-  >
-    {/* TODO */}
-  </Modal>);
+
+  return  (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <View
+          style={{
+            backgroundColor: 'white',
+            padding: 20,
+            borderRadius: 10,
+            elevation: 5,
+            height: screenHeight / 2, // Set the height to half of the screen
+          }}
+        >
+          <TouchableOpacity
+            onPress={onClose}
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              zIndex: 1,
+            }}
+          >
+            <Text style={{ fontSize: 24, color: 'gray' }}>X</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 22, marginBottom: 10, color: 'black', fontWeight: 'bold' }}>Add your friends</Text>
+          {waitlist.map((item) => (
+            <View key={item.userId} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={{ fontSize: 18, color: 'black' }}>{item.name}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  onAddToStage(item.userId)
+                }}
+                style={{ marginLeft: 'auto' }}>
+                <Text style={{ fontSize: 16, color: 'blue' }}>+ADD</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </View>
+    </Modal>
+
+  );
 }
 
 const VideoCall = () => {
   const route = useRoute();
   const { roomId } = route.params;
   const [modalVisible, setModalVisible] = useState(false);
-
+  const [waitlistModalVisible, setWaitlistModalVisible] = useState(false);
+  
   // for storing peer connections
   const [memberPeers, setMemberPeers] = useState([]);
   const [participants, setParticipants] = useState([]);
-
+  
   // refs
   const socketRef = useRef();
   const streamRef = useRef();
-
   const { user } = useAuthContext();
+  
+  const isHost = user.profile.role === "influencer"; //FIXME: check if room.host == user.id instead
+  const buttonType = isHost ? "Add user" : "Join waitlist";
+
+  const onBottomButtonPressed = async () => {
+      console.log('pressed');
+      if(isHost){
+        setWaitlistModalVisible(true);
+      }
+      else {
+        socketRef.current.emit('JOIN_WAITLIST', {
+            roomId: roomId,
+            userId: user.auth.uid,
+            userData: user.profile
+        })
+    }
+  };
+
+  const onAddToStage = async (userId) => {
+    socketRef.current.emit("ADD_TO_STAGE", {
+      roomId: roomId,
+      userId: userId,
+      socketId: socketRef.current.id,
+    })
+  }
+
 
   useEffect(() => {
     socketRef.current = io.connect(baseUrl);
-
+    mediaDevices.getUserMedia({
+      audio: true,
+      video: false
+    }).then((stream) => {
+      stream.current = stream;
+    });
     // on joining the room
     socketRef.current.emit("JOIN_ROOM", {
       roomId: roomId,
@@ -136,7 +238,7 @@ const VideoCall = () => {
       }
     );
 
-    socketRef.current.on("R_RETN_SIG", ({ receiverSocketId, signal }) => {
+    socketRef.current.on("R_RTRN_SIG", ({ receiverSocketId, signal }) => {
       // update peer instance for the member
       let newMemberPeers = [];
       memberPeers.forEach((member) => {
@@ -162,7 +264,7 @@ const VideoCall = () => {
     });
 
     peer.on("signal", (signal) => {
-      socketRef.current.emit("sending signal", {
+      socketRef.current.emit("SEND_SIG", {
         memberSocketId,
         socketId,
         signal,
@@ -184,7 +286,7 @@ const VideoCall = () => {
     });
 
     peer.on("signal", (signal) => {
-      socketRef.current.emit("RET_SIG", {
+      socketRef.current.emit("RTRN_SIG", {
         signal: signal,
         senderSocketId: senderSocketId,
       });
@@ -276,7 +378,7 @@ const VideoCall = () => {
       <Text
         style={{ color: "white", fontSize: 18, fontWeight: "bold", margin: 10 }}
       >
-        Frineds Making Rooms
+        Friends Making Rooms
       </Text>
       <View style={{ flexDirection: "row", margin: 10, alignItems: "center" }}>
         <Icon name={"circle"} size={15} color="red" />
@@ -409,8 +511,8 @@ const VideoCall = () => {
             }}
           >
             <TouchableOpacity>
-              <Text style={{ color: "white", fontSize: 20 }}>
-                join waitlist
+              <Text onPress={onBottomButtonPressed}  style={{ color: "white", fontSize: 20 }}>
+                {buttonType}
               </Text>
             </TouchableOpacity>
           </View>
@@ -436,6 +538,13 @@ const VideoCall = () => {
           </TouchableOpacity>
         </View>
       </View>
+      <WaitlistModal
+        visible={waitlistModalVisible} 
+        onClose={() => {setWaitlistModalVisible(false)}}
+        roomId={roomId}
+        onAddToStage={onAddToStage}
+      >
+      </WaitlistModal>
       <Modal
         animationType="slide"
         transparent={true}
