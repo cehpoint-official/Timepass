@@ -16,13 +16,16 @@ import { SimplePeer } from "simple-peer";
 import io from "socket.io-client";
 import { firebase } from "@react-native-firebase/firestore";
 import { useAuthContext } from "../providers/AuthProvider";
+import { useRoute } from "@react-navigation/native";
 
-const baseUrl = "ws://192.168.1.6:8080";
-const socket = io(baseUrl, { autoConnect: false });
+const baseUrl = "ws://192.168.1.14:8080";
 
-const StageParticipant = ({ name, peer }) => {
+const StageParticipant = ({ participant }) => {
+  const { name, peer, socketId, userId } = participant;
+  const {user} = useAuthContext();
   const ref = useRef();
   useEffect(() => {
+    if (user.auth.uid === userId) return;
     peer.on("stream", (stream) => {
       console.log("stream", stream);
       ref.current.srcObject = stream;
@@ -64,8 +67,30 @@ const StageParticipant = ({ name, peer }) => {
   );
 };
 
+const WaitlistModal = ({visible, onClose, roomId}) => {
+  const [waitlist, setWaitlist] = useState([]);
+  useEffect(() => {
+    let unsub = firebase.firestore().collection('rooms').doc(roomId).collection('waitlist').onSnapshot((snap) => {
+      let newWaitlist = [];
+      snap.docs.forEach((doc) =>
+        newWaitlist.push({userId: doc.id, ...doc.data()})
+      );
+      setWaitlist(newWaitlist);
+    });
+    return () => unsub();
+  }, []);
+  return  (<Modal
+    animationType="slide"
+    visible={visible} onRequestClose={onClose}
+  >
+    {/* TODO */}
+  </Modal>);
+}
+
 const VideoCall = () => {
-  const roomId = "ddd";
+  const route = useRoute();
+  const { roomId } = route.params;
+  const [modalVisible, setModalVisible] = useState(false);
 
   // for storing peer connections
   const [memberPeers, setMemberPeers] = useState([]);
@@ -78,7 +103,7 @@ const VideoCall = () => {
   const { user } = useAuthContext();
 
   useEffect(() => {
-    socketRef.current = io.connect("/");
+    socketRef.current = io.connect(baseUrl);
 
     // on joining the room
     socketRef.current.emit("JOIN_ROOM", {
@@ -86,7 +111,7 @@ const VideoCall = () => {
       userId: user.auth.uid,
       userData: user.profile
     });
-
+  
     // on receiving the peer acknowledgement
     // from another peer
     socketRef.current.on(
@@ -122,6 +147,7 @@ const VideoCall = () => {
       });
       setMemberPeers(newMemberPeers);
     });
+    return () => socketRef.current.disconnect();
   }, []);
 
   const createPeerConnectionWithMember = ({
@@ -183,9 +209,8 @@ const VideoCall = () => {
         // add all participants to the list
         // except the current user
         snap.docs.forEach((participant) => {
-          if (participant.id === user.auth.uid) return;
           newParticipants.push({
-            userId: participantId,
+            userId: participant.id,
             ...participant.data(),
           });
         });
@@ -317,14 +342,12 @@ const VideoCall = () => {
       </View>
 
       <View style={{ flexDirection: "row" }}>
-        <StageParticipant
-          name={participant1}
-          peer={peers.find((peer) => peer.id === participant1.peerId)}
-        />
-        <StageParticipant
-          name={participant2}
-          peer={peers.find((peer) => peer.id === participant2.peerId)}
-        />
+        {participants.find(participant => participant.type === 'female') && <StageParticipant
+          participant={participants.find(participant => participant.type === 'female')}
+        />}
+        {participants.find(participant => participant.type === 'male') && <StageParticipant
+          participant={participants.find(participant => participant.type === 'male')}
+        />}
       </View>
       <ScrollView contentContainerStyle={styles.scrollViewContainer}>
         <View style={{ flex: 1 }}>

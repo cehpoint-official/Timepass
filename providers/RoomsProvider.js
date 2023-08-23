@@ -9,6 +9,7 @@ export const RoomsProvider = ({ children }) => {
   const [rooms, setRooms] = useState([]);
   useEffect(() => {
     let unsubscribe;
+    if (user.auth === null) return;
     if (user.auth.uid === undefined || user.auth.uid === null) return;
     unsubscribe = firebase
       .firestore()
