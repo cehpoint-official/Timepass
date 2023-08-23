@@ -11,8 +11,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Icon from "react-native-vector-icons/FontAwesome";
 import Gifts from "./components/gifts";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
-import { mediaDevices, RTCPeerConnection, RTCView } from "react-native-webrtc";
-import Peer from "simple-peer";
+import { RTCView } from "react-native-webrtc";
+import { SimplePeer } from "simple-peer";
 import io from "socket.io-client";
 import { firebase } from "@react-native-firebase/firestore";
 import { useAuthContext } from "../providers/AuthProvider";
@@ -66,47 +66,70 @@ const StageParticipant = ({ name, peer }) => {
 
 const VideoCall = () => {
   const roomId = "ddd";
-  const [peers, setPeers] = useState([]);
+
+  // for storing peer connections
+  const [memberPeers, setMemberPeers] = useState([]);
+  const [participants, setParticipants] = useState([]);
+
+  // refs
   const socketRef = useRef();
-  const userVideo = useRef();
-  const peersRef = useRef([]);
   const streamRef = useRef();
+
   const { user } = useAuthContext();
-  const [participant1, setParticipant1] = useState();
-  const [participant2, setParticipant2] = useState();
 
   useEffect(() => {
     socketRef.current = io.connect("/");
-    socketRef.current.emit("join room", roomId);
-    socketRef.current.on("all users", (users) => {
-      const peers = [];
-      users.forEach((userID) => {
-        const peer = createPeer(userID, socketRef.current.id, stream);
-        peersRef.current.push({
-          peerID: userID,
-          peer,
-        });
-        peers.push(peer);
-      });
-      setPeers(peers);
+
+    // on joining the room
+    socketRef.current.emit("JOIN_ROOM", {
+      roomId: roomId,
+      userId: user.auth.uid,
+      userData: user.profile
     });
 
-    socketRef.current.on("user joined", (payload) => {
-      const peer = addPeer(payload.signal, payload.callerID, stream);
-      peersRef.current.push({
-        peerID: payload.callerID,
-        peer,
+    // on receiving the peer acknowledgement
+    // from another peer
+    socketRef.current.on(
+      "R_SEND_SIG",
+      ({ incomingSignal, senderSocketId, stream }) => {
+        // join the peer request from the participant
+        const peer = addPeerConnectionWithParticipant({
+          incomingSignal: incomingSignal,
+          senderSocketId: senderSocketId,
+          stream: stream,
+        });
+        let newParticipants = [];
+
+        // update peer instance for the participant
+        participants.forEach((participant) => {
+          if (participant.socketId === senderSocketId) {
+            participant.peer = peer;
+          }
+          newParticipants.push(participant);
+        });
+        setParticipants(newParticipants);
+      }
+    );
+
+    socketRef.current.on("R_RETN_SIG", ({ receiverSocketId, signal }) => {
+      // update peer instance for the member
+      let newMemberPeers = [];
+      memberPeers.forEach((member) => {
+        if (member.socketId === receiverSocketId) {
+          member.peer.signal(signal);
+        }
+        newMemberPeers.push(member);
       });
-      setPeers((users) => [...users, peer]);
-    });
-    socketRef.current.on("receiving returned signal", (payload) => {
-      const item = peersRef.current.find((p) => p.peerID === payload.id);
-      item.peer.signal(payload.signal);
+      setMemberPeers(newMemberPeers);
     });
   }, []);
 
-  function createPeer(userToSignal, callerID, stream) {
-    const peer = new Peer({
+  const createPeerConnectionWithMember = ({
+    memberSocketId,
+    socketId,
+    stream,
+  }) => {
+    const peer = new SimplePeer({
       initiator: true,
       trickle: false,
       stream,
@@ -114,40 +137,99 @@ const VideoCall = () => {
 
     peer.on("signal", (signal) => {
       socketRef.current.emit("sending signal", {
-        userToSignal,
-        callerID,
+        memberSocketId,
+        socketId,
         signal,
       });
     });
 
     return peer;
-  }
+  };
 
-  function addPeer(incomingSignal, callerID, stream) {
-    const peer = new Peer({
+  const addPeerConnectionWithParticipant = ({
+    incomingSignal,
+    senderSocketId,
+    stream,
+  }) => {
+    const peer = new SimplePeer({
       initiator: false,
       trickle: false,
       stream,
     });
+
     peer.on("signal", (signal) => {
-      socketRef.current.emit("returning signal", { signal, callerID });
+      socketRef.current.emit("RET_SIG", {
+        signal: signal,
+        senderSocketId: senderSocketId,
+      });
     });
+
     peer.signal(incomingSignal);
     return peer;
-  }
+  };
 
   useEffect(() => {
-    let unsub = firebase.firestore().collection("rooms").doc(roomId).onSnapshot((doc) => {
-      let roomData = doc.data();
-      setParticipant1(roomData.participant1);
-      setParticipant2(roomData.participant2);
-      if ([roomData.participant1, roomData.participant2].includes(user.auth.uid)) {
-        navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((stream) => {
-          streamRef.current = stream;
-          userVideo.current.srcObject = stream;
+
+    // subscribe to changes in participant list
+    let unsub = firebase
+      .firestore()
+      .collection("rooms")
+      .doc(roomId)
+      .collection("onstage")
+      .onSnapshot(async (snap) => {
+        let newParticipants = [];
+        let newMemberPeers = [];
+
+        // add all participants to the list
+        // except the current user
+        snap.docs.forEach((participant) => {
+          if (participant.id === user.auth.uid) return;
+          newParticipants.push({
+            userId: participantId,
+            ...participant.data(),
+          });
         });
-      }
-    });
+
+        // add all members to the list if current user is a participant
+        // or, remove all members from the list if current user is not a participant
+        if (
+          newParticipants.includes(
+            (participant) => participant.userId === user.auth.uid
+          )
+        ) {
+          // fetch members list
+          await firebase
+            .firestore()
+            .collection("rooms")
+            .doc(roomId)
+            .get()
+            .then((doc) => {
+              if (doc.exists) {
+                const members = doc.data().members;
+
+                // send peer connection request to each member and create peer
+                // instance for each member except the current user
+                members.forEach((userId, socketId) => {
+                  if (userId === user.auth.uid) return;
+                  const peer = createPeerConnectionWithMember({
+                    memberSocketId: socketId,
+                    socketId: socketRef.current.id,
+                    stream: streamRef.current,
+                  });
+                  newMemberPeers.push({
+                    socketId: socketId,
+                    peer: peer,
+                  });
+                });
+              }
+            });
+          setMemberPeers(newMemberPeers);
+        } else {
+          // remove all member peers
+          setMemberPeers([]);
+        }
+        setParticipants(newParticipants);
+      });
     return () => unsub();
   }, []);
 
@@ -235,8 +317,14 @@ const VideoCall = () => {
       </View>
 
       <View style={{ flexDirection: "row" }}>
-        <StageParticipant name={participant1} peer={ peers.find(peer => peer.id === participant1.peerId)} />
-        <StageParticipant name={participant2} peer={ peers.find(peer => peer.id === participant2.peerId) } />
+        <StageParticipant
+          name={participant1}
+          peer={peers.find((peer) => peer.id === participant1.peerId)}
+        />
+        <StageParticipant
+          name={participant2}
+          peer={peers.find((peer) => peer.id === participant2.peerId)}
+        />
       </View>
       <ScrollView contentContainerStyle={styles.scrollViewContainer}>
         <View style={{ flex: 1 }}>
