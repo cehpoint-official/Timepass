@@ -11,21 +11,90 @@ import {
 } from 'react-native';
 import React ,{useEffect, useRef, useState}from 'react';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import backgroundimage from '../assets/images/backgorund.jpg';
 
 const windowWidth = Dimensions.get('window').width;
 const windowHeight = Dimensions.get('window').height;
 import {useNavigation} from '@react-navigation/native';
+import { firebase } from '@react-native-firebase/firestore';
+import { useAuthContext } from '../providers/AuthProvider';
+import { useRoomsContext } from '../providers/RoomsProvider';
+
+const RoomCard = ({ room }) => {
+  const navigation = useNavigation();
+
+  return (<View style={styles.box}>
+    <View
+      style={{
+        height: 80,
+        width: 80,
+        backgroundColor: 'white',
+        borderRadius: 45,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 5,
+        marginLeft: 10,
+      }}>
+      <Image
+        style={{height: 70, width: 70, marginBottom: 10}}
+        source={require('../assets/images/avatar2.png')}
+      />
+    </View>
+    <View
+      style={{
+        padding: 20,
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+      }}>
+      <Text style={styles.text}>{room.hostName}</Text>
+      <View style={styles.flex}>
+        <ImageBackground
+          source={require('../assets/images/hritik.jpg')}
+          style={styles.circle}></ImageBackground>
+        <ImageBackground
+          source={require('../assets/images/hritik.jpg')}
+          style={styles.circle}></ImageBackground>
+        <ImageBackground
+          source={require('../assets/images/hritik.jpg')}
+          style={styles.circle}></ImageBackground>
+      </View>
+    </View>
+    <View style={styles.box3}>
+      <TouchableOpacity onPress={() => navigation.navigate('VideoCall',{roomId: room.id})}>
+        <Text style={styles.text}>Join Room</Text>
+      </TouchableOpacity>
+    </View>
+  </View>);
+}
 
 const GroupCall2 = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const navigation = useNavigation();
   const data = {};
+  const {rooms} = useRoomsContext();
+
+
   const goto = () => {
     navigation.navigate('VideoCall');
   };
   const goto1 = () => {
     navigation.navigate('Profile');
+  };
+
+  const {user} = useAuthContext();
+  const onAddRoomPressed = async () => {
+    await firebase.firestore().collection("users").doc(user.auth.uid).get().then( async (doc) => {
+      if (doc.data().role === "influencer") {
+        await firebase.firestore().collection("rooms").add({
+          host: user.auth.uid,
+          hostName: doc.data().name,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then((res) => {
+          navigation.navigate('VideoCall', { roomId: res.id });
+        });
+      } else {
+        setModalVisible(true);
+      }
+    });
   };
 
   return (
@@ -60,7 +129,7 @@ const GroupCall2 = () => {
            <Icon name="search" size={40} color="white"/>
            </TouchableOpacity>
           <TouchableOpacity
-          onPress={()=>setModalVisible(true)}
+          onPress={onAddRoomPressed}
             style={{
               width: 40,
               height: 40,
@@ -98,300 +167,8 @@ const GroupCall2 = () => {
         </View>
 
         <ScrollView>
-          <View style={styles.box}>
-            <View
-              style={{
-                height: 80,
-                width: 80,
-                backgroundColor: 'white',
-                borderRadius: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 5,
-                marginLeft: 10,
-              }}>
-              <Image
-                style={{height: 70, width: 70, marginBottom: 10}}
-                source={require('../assets/images/avatar2.png')}
-              />
-            </View>
-            <View
-              style={{
-                padding: 20,
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}>
-              <Text style={styles.text}>Mahi Reddy</Text>
-              <View style={styles.flex}>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-              </View>
-            </View>
-            <View style={styles.box3}>
-              <TouchableOpacity onPress={goto}>
-                <Text style={styles.text}>Join Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.box}>
-            <View
-              style={{
-                height: 80,
-                width: 80,
-                backgroundColor: 'white',
-                borderRadius: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 5,
-                marginLeft: 10,
-              }}>
-              <Image
-                style={{height: 65, width: 55, marginBottom: 10}}
-                source={require('../assets/images/avatar2.png')}
-              />
-            </View>
-            <View
-              style={{
-                padding: 20,
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}>
-              <Text style={styles.text}>Mahi Reddy</Text>
-              <View style={styles.flex}>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-              </View>
-            </View>
-            <View style={styles.box3}>
-              <TouchableOpacity onPress={goto}>
-                <Text style={styles.text}>Join Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.box}>
-            <View
-              style={{
-                height: 80,
-                width: 80,
-                backgroundColor: 'white',
-                borderRadius: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 5,
-                marginLeft: 10,
-              }}>
-              <Image
-                style={{height: 65, width: 55, marginBottom: 10}}
-                source={require('../assets/images/avatar2.png')}
-              />
-            </View>
-            <View
-              style={{
-                padding: 20,
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}>
-              <Text style={styles.text}>Mahi Reddy</Text>
-              <View style={styles.flex}>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-              </View>
-            </View>
-            <View style={styles.box3}>
-              <TouchableOpacity onPress={goto}>
-                <Text style={styles.text}>Join Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.box}>
-            <View
-              style={{
-                height: 80,
-                width: 80,
-                backgroundColor: 'white',
-                borderRadius: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 5,
-                marginLeft: 10,
-              }}>
-              <Image
-                style={{height: 65, width: 55, marginBottom: 10}}
-                source={require('../assets/images/avatar2.png')}
-              />
-            </View>
-            <View
-              style={{
-                padding: 20,
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}>
-              <Text style={styles.text}>Mahi Reddy</Text>
-              <View style={styles.flex}>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-              </View>
-            </View>
-            <View style={styles.box3}>
-              <TouchableOpacity onPress={goto}>
-                <Text style={styles.text}>Join Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.box}>
-            <View
-              style={{
-                height: 80,
-                width: 80,
-                backgroundColor: 'white',
-                borderRadius: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 5,
-                marginLeft: 10,
-              }}>
-              <Image
-                style={{height: 65, width: 55, marginBottom: 10}}
-                source={require('../assets/images/avatar2.png')}
-              />
-            </View>
-            <View
-              style={{
-                padding: 20,
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}>
-              <Text style={styles.text}>Mahi Reddy</Text>
-              <View style={styles.flex}>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-              </View>
-            </View>
-            <View style={styles.box3}>
-              <TouchableOpacity onPress={goto}>
-                <Text style={styles.text}>Join Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.box}>
-            <View
-              style={{
-                height: 80,
-                width: 80,
-                backgroundColor: 'white',
-                borderRadius: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 5,
-                marginLeft: 10,
-              }}>
-              <Image
-                style={{height: 65, width: 55, marginBottom: 10}}
-                source={require('../assets/images/avatar2.png')}
-              />
-            </View>
-            <View
-              style={{
-                padding: 20,
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}>
-              <Text style={styles.text}>Mahi Reddy</Text>
-              <View style={styles.flex}>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-              </View>
-            </View>
-            <View style={styles.box3}>
-              <TouchableOpacity onPress={goto}>
-                <Text style={styles.text}>Join Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.box}>
-            <View
-              style={{
-                height: 80,
-                width: 80,
-                backgroundColor: 'white',
-                borderRadius: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 5,
-                marginLeft: 10,
-              }}>
-              <Image
-                style={{height: 65, width: 55, marginBottom: 10}}
-                source={require('../assets/images/avatar2.png')}
-              />
-            </View>
-            <View
-              style={{
-                padding: 20,
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}>
-              <Text style={styles.text}>Mahi Reddy</Text>
-              <View style={styles.flex}>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-                <ImageBackground
-                  source={require('../assets/images/hritik.jpg')}
-                  style={styles.circle}></ImageBackground>
-              </View>
-            </View>
-            <View style={styles.box3}>
-              <TouchableOpacity onPress={goto}>
-                <Text style={styles.text}>Join Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          
+          {rooms.map((room, index) => <RoomCard key={index} room={room} />)}
         </ScrollView>
       </View>
 
