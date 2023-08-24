@@ -12,53 +12,52 @@ import React, { useState, useEffect, useRef } from "react";
 import Icon from "react-native-vector-icons/FontAwesome";
 import Gifts from "./components/gifts";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
-import { RTCView, mediaDevices } from "react-native-webrtc";
-import { SimplePeer } from "simple-peer";
+import { mediaDevices } from "react-native-webrtc";
+import SimplePeer  from "simple-peer";
 import io from "socket.io-client";
 import { firebase } from "@react-native-firebase/firestore";
 import { useAuthContext } from "../providers/AuthProvider";
 import { useRoute } from "@react-navigation/native";
-import Sound from 'react-native-sound';
+import Sound from "react-native-sound";
 
-const screenHeight = Dimensions.get('window').height;
-const baseUrl = "ws://192.168.1.14:8080";
+const screenHeight = Dimensions.get("window").height;
+const baseUrl = "ws://192.168.100.53:8080";
 //const baseUrl = "ws://172.16.2.38:8080";
 
 const StageParticipant = ({ participant }) => {
   const { name, peer, socketId, userId } = participant;
-  const {user} = useAuthContext();
+  const { user } = useAuthContext();
   const ref = useRef();
   const soundRef = useRef();
 
   useEffect(() => {
     if (user.auth.uid === userId) return;
-    console.log('PARTICIPANT',participant);
+    console.log("PARTICIPANT", participant, peer);
+    if (peer === undefined) return;
     peer.on("stream", (stream) => {
       console.log("stream", stream);
       ref.current.srcObject = stream;
-      soundRef.current = new Sound(
-        ref.current, null, err => {
-          if (err) {
-            console.log('Error loading sound');
-          } else {
-            soundRef.current.play(success => {
-              if (success) {
-                console.log('Successfully finished playing');
-              } else {
-                console.log('Playback failed');
-              }
-            });
-          }
+      soundRef.current = new Sound(ref.current, null, (err) => {
+        if (err) {
+          console.log("Error loading sound");
+        } else {
+          soundRef.current.play((success) => {
+            if (success) {
+              console.log("Successfully finished playing");
+            } else {
+              console.log("Playback failed");
+            }
+          });
         }
-      );
+      });
     });
     return () => {
       if (this.sound) {
         this.sound.stop(() => {
-          console.log('Sound stopped');
+          console.log("Sound stopped");
         });
       }
-    }
+    };
   }, [peer]);
   return (
     <View ref={ref} style={styles.box1}>
@@ -96,31 +95,35 @@ const StageParticipant = ({ participant }) => {
   );
 };
 
-
-const WaitlistModal = ({visible, onClose, roomId, onAddToStage}) => {
+const WaitlistModal = ({ visible, onClose, roomId, onAddToStage }) => {
   const [waitlist, setWaitlist] = useState([]);
   useEffect(() => {
-    let unsub = firebase.firestore().collection('rooms').doc(roomId).collection('waitlist').onSnapshot((snap) => {
-      let newWaitlist = [];
-      snap.docs.forEach((doc) =>
-      newWaitlist.push({userId: doc.id, ...doc.data()})
-      );
-      setWaitlist(newWaitlist);
-    });
+    let unsub = firebase
+      .firestore()
+      .collection("rooms")
+      .doc(roomId)
+      .collection("waitlist")
+      .onSnapshot((snap) => {
+        let newWaitlist = [];
+        snap.docs.forEach((doc) =>
+          newWaitlist.push({ userId: doc.id, ...doc.data() })
+        );
+        setWaitlist(newWaitlist);
+      });
     return () => unsub();
   }, []);
 
-  return  (
+  return (
     <Modal
       animationType="slide"
       transparent={true}
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
         <View
           style={{
-            backgroundColor: 'white',
+            backgroundColor: "white",
             padding: 20,
             borderRadius: 10,
             elevation: 5,
@@ -130,115 +133,132 @@ const WaitlistModal = ({visible, onClose, roomId, onAddToStage}) => {
           <TouchableOpacity
             onPress={onClose}
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 10,
               right: 10,
               zIndex: 1,
             }}
           >
-            <Text style={{ fontSize: 24, color: 'gray' }}>X</Text>
+            <Text style={{ fontSize: 24, color: "gray" }}>X</Text>
           </TouchableOpacity>
-          <Text style={{ fontSize: 22, marginBottom: 10, color: 'black', fontWeight: 'bold' }}>Add your friends</Text>
+          <Text
+            style={{
+              fontSize: 22,
+              marginBottom: 10,
+              color: "black",
+              fontWeight: "bold",
+            }}
+          >
+            Add your friends
+          </Text>
           {waitlist.map((item) => (
-            <View key={item.userId} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Text style={{ fontSize: 18, color: 'black' }}>{item.name}</Text>
+            <View
+              key={item.userId}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <Text style={{ fontSize: 18, color: "black" }}>{item.name}</Text>
               <TouchableOpacity
                 onPress={() => {
-                  onAddToStage(item.userId)
+                  onAddToStage(item);
                 }}
-                style={{ marginLeft: 'auto' }}>
-                <Text style={{ fontSize: 16, color: 'blue' }}>+ADD</Text>
+                style={{ marginLeft: "auto" }}
+              >
+                <Text style={{ fontSize: 16, color: "blue" }}>+ADD</Text>
               </TouchableOpacity>
             </View>
           ))}
         </View>
       </View>
     </Modal>
-
   );
-}
+};
 
 const VideoCall = () => {
   const route = useRoute();
   const { roomId } = route.params;
   const [modalVisible, setModalVisible] = useState(false);
   const [waitlistModalVisible, setWaitlistModalVisible] = useState(false);
-  
+
   // for storing peer connections
   const [memberPeers, setMemberPeers] = useState([]);
   const [participants, setParticipants] = useState([]);
-  
+
   // refs
   const socketRef = useRef();
   const streamRef = useRef();
   const { user } = useAuthContext();
-  
+
   const isHost = user.profile.role === "influencer"; //FIXME: check if room.host == user.id instead
   const buttonType = isHost ? "Add user" : "Join waitlist";
 
   const onBottomButtonPressed = async () => {
-      console.log('pressed');
-      if(isHost){
-        setWaitlistModalVisible(true);
-      }
-      else {
-        socketRef.current.emit('JOIN_WAITLIST', {
-            roomId: roomId,
-            userId: user.auth.uid,
-            userData: user.profile
-        })
+    console.log("pressed");
+    if (isHost) {
+      setWaitlistModalVisible(true);
+    } else {
+      socketRef.current.emit("JOIN_WAITLIST", {
+        roomId: roomId,
+        userId: user.auth.uid,
+        userData: user.profile,
+      });
     }
   };
 
-  const onAddToStage = async (userId) => {
+  const onAddToStage = async (user) => {
     socketRef.current.emit("ADD_TO_STAGE", {
       roomId: roomId,
-      userId: userId,
-      socketId: socketRef.current.id,
-    })
-  }
-
+      userId: user.userId,
+      socketId: user.socketId,
+    });
+  };
 
   useEffect(() => {
     socketRef.current = io.connect(baseUrl);
-    mediaDevices.getUserMedia({
-      audio: true,
-      video: false
-    }).then((stream) => {
-      stream.current = stream;
-    });
+    mediaDevices
+      .getUserMedia({
+        audio: true,
+        video: false,
+      })
+      .then((stream) => {
+        streamRef.current = stream;
+      });
     // on joining the room
     socketRef.current.emit("JOIN_ROOM", {
       roomId: roomId,
       userId: user.auth.uid,
-      userData: user.profile
+      userData: user.profile,
     });
-  
+
     // on receiving the peer acknowledgement
     // from another peer
-    socketRef.current.on(
-      "R_SEND_SIG",
-      ({ incomingSignal, senderSocketId, stream }) => {
-        // join the peer request from the participant
-        const peer = addPeerConnectionWithParticipant({
-          incomingSignal: incomingSignal,
-          senderSocketId: senderSocketId,
-          stream: stream,
-        });
-        let newParticipants = [];
+    socketRef.current.on("R_SEND_SIG", ({ signal, senderSocketId }) => {
+      console.log("RECEIVED SEND SIGNAL FROM " + senderSocketId + "◀️◀️◀️◀️");
+      // join the peer request from the participant
+      const peer = addPeerConnectionWithParticipant({
+        incomingSignal: signal,
+        senderSocketId: senderSocketId,
+      });
 
-        // update peer instance for the participant
-        participants.forEach((participant) => {
-          if (participant.socketId === senderSocketId) {
-            participant.peer = peer;
-          }
-          newParticipants.push(participant);
-        });
-        setParticipants(newParticipants);
-      }
-    );
+      let newParticipants = [];
+
+      // update peer instance for the participant
+      participants.forEach((participant) => {
+        if (participant.socketId === senderSocketId) {
+          participant.peer = peer;
+        }
+        newParticipants.push(participant);
+      });
+      setParticipants(newParticipants);
+    });
 
     socketRef.current.on("R_RTRN_SIG", ({ receiverSocketId, signal }) => {
+      console.log(
+        "RECEIVED RETURNED SIGNAL FROM " + receiverSocketId + "◀️◀️◀️◀️"
+      );
       // update peer instance for the member
       let newMemberPeers = [];
       memberPeers.forEach((member) => {
@@ -252,22 +272,21 @@ const VideoCall = () => {
     return () => socketRef.current.disconnect();
   }, []);
 
-  const createPeerConnectionWithMember = ({
-    memberSocketId,
-    socketId,
-    stream,
-  }) => {
+  const createPeerConnectionWithMember = ({ memberSocketId }) => {
+    console.log('ljljljl');
     const peer = new SimplePeer({
       initiator: true,
       trickle: false,
-      stream,
     });
-
+    peer.addStream(streamRef.current);
+    console.log(
+      "TRYING TO CREATE PEER WITH MEMBER WITH SOCKET ID " + memberSocketId
+    );
     peer.on("signal", (signal) => {
+      console.log("SENDING SEIGNAL TO " + memberSocketId + "▶️▶️▶️▶️");
       socketRef.current.emit("SEND_SIG", {
-        memberSocketId,
-        socketId,
-        signal,
+        receiverSocketId: memberSocketId,
+        signal: signal,
       });
     });
 
@@ -277,12 +296,10 @@ const VideoCall = () => {
   const addPeerConnectionWithParticipant = ({
     incomingSignal,
     senderSocketId,
-    stream,
   }) => {
     const peer = new SimplePeer({
       initiator: false,
       trickle: false,
-      stream,
     });
 
     peer.on("signal", (signal) => {
@@ -296,15 +313,16 @@ const VideoCall = () => {
     return peer;
   };
 
-  useEffect(() => {
+  const fetchMembersList = async () => {};
 
+  useEffect(() => {
     // subscribe to changes in participant list
     let unsub = firebase
       .firestore()
       .collection("rooms")
       .doc(roomId)
       .collection("onstage")
-      .onSnapshot(async (snap) => {
+      .onSnapshot((snap) => {
         let newParticipants = [];
         let newMemberPeers = [];
 
@@ -320,38 +338,38 @@ const VideoCall = () => {
         // add all members to the list if current user is a participant
         // or, remove all members from the list if current user is not a participant
         if (
-          newParticipants.includes(
+          newParticipants.find(
             (participant) => participant.userId === user.auth.uid
           )
         ) {
+          console.log("in new participant");
           // fetch members list
-          await firebase
+          firebase
             .firestore()
             .collection("rooms")
             .doc(roomId)
             .get()
             .then((doc) => {
-              if (doc.exists) {
-                const members = doc.data().members;
-
-                // send peer connection request to each member and create peer
-                // instance for each member except the current user
-                members.forEach((userId, socketId) => {
-                  if (userId === user.auth.uid) return;
-                  const peer = createPeerConnectionWithMember({
-                    memberSocketId: socketId,
-                    socketId: socketRef.current.id,
-                    stream: streamRef.current,
-                  });
-                  newMemberPeers.push({
-                    socketId: socketId,
-                    peer: peer,
-                  });
+              const members = doc.data().members;
+              console.log(doc.data().members);
+              // send peer connection request to each member and create peer
+              // instance for each member except the current user
+              Object.keys(members).forEach((userId) => {
+                console.log(userId, members[userId]);
+                if (userId === user.auth.uid) return;
+                const peer = createPeerConnectionWithMember({
+                  memberSocketId: members[userId],
                 });
-              }
+                newMemberPeers.push({
+                  socketId: socketId,
+                  peer: peer,
+                });
+              });
             });
           setMemberPeers(newMemberPeers);
         } else {
+          console.log("not in participant");
+
           // remove all member peers
           setMemberPeers([]);
         }
@@ -444,12 +462,20 @@ const VideoCall = () => {
       </View>
 
       <View style={{ flexDirection: "row" }}>
-        {participants.find(participant => participant.type === 'female') && <StageParticipant
-          participant={participants.find(participant => participant.type === 'female')}
-        />}
-        {participants.find(participant => participant.type === 'male') && <StageParticipant
-          participant={participants.find(participant => participant.type === 'male')}
-        />}
+        {participants.find((participant) => participant.type === "female") && (
+          <StageParticipant
+            participant={participants.find(
+              (participant) => participant.type === "female"
+            )}
+          />
+        )}
+        {participants.find((participant) => participant.type === "male") && (
+          <StageParticipant
+            participant={participants.find(
+              (participant) => participant.type === "male"
+            )}
+          />
+        )}
       </View>
       <ScrollView contentContainerStyle={styles.scrollViewContainer}>
         <View style={{ flex: 1 }}>
@@ -511,7 +537,10 @@ const VideoCall = () => {
             }}
           >
             <TouchableOpacity>
-              <Text onPress={onBottomButtonPressed}  style={{ color: "white", fontSize: 20 }}>
+              <Text
+                onPress={onBottomButtonPressed}
+                style={{ color: "white", fontSize: 20 }}
+              >
                 {buttonType}
               </Text>
             </TouchableOpacity>
@@ -539,12 +568,13 @@ const VideoCall = () => {
         </View>
       </View>
       <WaitlistModal
-        visible={waitlistModalVisible} 
-        onClose={() => {setWaitlistModalVisible(false)}}
+        visible={waitlistModalVisible}
+        onClose={() => {
+          setWaitlistModalVisible(false);
+        }}
         roomId={roomId}
         onAddToStage={onAddToStage}
-      >
-      </WaitlistModal>
+      ></WaitlistModal>
       <Modal
         animationType="slide"
         transparent={true}

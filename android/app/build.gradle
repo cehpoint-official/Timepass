@@ -124,4 +124,9 @@ dependencies {
     }
 }
 
+project.ext.react = [
+    entryFile: "index.js",
+    enableHermes: false // Change this to false to use V8
+]
+
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
