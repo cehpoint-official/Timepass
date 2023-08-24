@@ -21,7 +21,7 @@ import { useRoute } from "@react-navigation/native";
 import Sound from "react-native-sound";
 
 const screenHeight = Dimensions.get("window").height;
-const baseUrl = "ws://192.168.100.53:8080";
+const baseUrl = "ws://192.168.1.14:8080";
 //const baseUrl = "ws://172.16.2.38:8080";
 
 const StageParticipant = ({ participant }) => {
@@ -94,6 +94,35 @@ const StageParticipant = ({ participant }) => {
     </View>
   );
 };
+
+const BottomButton = ({onPress, isHost}) => {
+  const buttonType = isHost ? "Add user" : "Join waitlist";
+  return(
+    <View
+      style={{
+        marginTop: "auto",
+        height: 40,
+        marginBottom: 10,
+        marginLeft: 20,
+        backgroundColor: "#2e63e8",
+        padding: 5,
+        justifyContent: "center",
+        alignItems: "center",
+        width: 150,
+        borderRadius: 10,
+      }}
+    >
+      <TouchableOpacity>
+        <Text
+          onPress={onPress}
+          style={{ color: "white", fontSize: 20 }}
+        >
+          {buttonType}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 const WaitlistModal = ({ visible, onClose, roomId, onAddToStage }) => {
   const [waitlist, setWaitlist] = useState([]);
@@ -192,11 +221,16 @@ const VideoCall = () => {
   const streamRef = useRef();
   const { user } = useAuthContext();
 
-  const isHost = user.profile.role === "influencer"; //FIXME: check if room.host == user.id instead
-  const buttonType = isHost ? "Add user" : "Join waitlist";
+  const [roomData, setRoomData] = useState({});
+
+  firebase.firestore().collection("rooms").doc(roomId).get().then((doc) => {
+    setRoomData(doc.data());
+  });
+  
 
   const onBottomButtonPressed = async () => {
     console.log("pressed");
+    const isHost = roomData.host === user.auth.uid;
     if (isHost) {
       setWaitlistModalVisible(true);
     } else {
@@ -456,7 +490,7 @@ const VideoCall = () => {
           />
         </View>
         <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
-          john{" "}
+          {roomData.hostName}
         </Text>
         <Icon name={"heart-o"} size={25} color="pink" />
       </View>
@@ -522,29 +556,8 @@ const VideoCall = () => {
               rohit sent the gift
             </Text>
           </View>
-          <View
-            style={{
-              marginTop: "auto",
-              height: 40,
-              marginBottom: 10,
-              marginLeft: 20,
-              backgroundColor: "#2e63e8",
-              padding: 5,
-              justifyContent: "center",
-              alignItems: "center",
-              width: 150,
-              borderRadius: 10,
-            }}
-          >
-            <TouchableOpacity>
-              <Text
-                onPress={onBottomButtonPressed}
-                style={{ color: "white", fontSize: 20 }}
-              >
-                {buttonType}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <BottomButton onPress={onBottomButtonPressed} isHost={roomData.host === user.auth.uid}>
+          </BottomButton>
         </View>
         <View>
           <TouchableOpacity>
