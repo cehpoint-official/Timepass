@@ -15,7 +15,7 @@ import GroupCall2 from "./screens/GroupCall2";
 import Message from "./screens/Message";
 import ChatScreen from "./screens/chatscreen";
 import Coins from "./screens/coins";
-import VideoCall from "./screens/VideoCall";
+import VideoCall from "./screens/VideoCall2";
 import SelectLanguage from "./screens/SelectLanguage";
 import Expertprofile from "./screens/Expertprofile";
 import Profile from "./screens/Profile";
