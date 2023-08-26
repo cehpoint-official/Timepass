@@ -224,7 +224,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     marginLeft: -5,
-
     overflow: 'hidden',
   },
   box2: {

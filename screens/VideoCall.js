@@ -8,12 +8,17 @@ import {
   Modal,
   Dimensions,
 } from "react-native";
+import iceServerConfig from "../iceServersConfig";
 import React, { useState, useEffect, useRef } from "react";
 import Icon from "react-native-vector-icons/FontAwesome";
 import Gifts from "./components/gifts";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
-import { mediaDevices } from "react-native-webrtc";
-import SimplePeer  from "simple-peer";
+import {
+  mediaDevices,
+  RTCPeerConnection,
+  RTCSessionDescription,
+} from "react-native-webrtc";
+import SimplePeer from "simple-peer";
 import io from "socket.io-client";
 import { firebase } from "@react-native-firebase/firestore";
 import { useAuthContext } from "../providers/AuthProvider";
@@ -21,7 +26,7 @@ import { useRoute } from "@react-navigation/native";
 import Sound from "react-native-sound";
 
 const screenHeight = Dimensions.get("window").height;
-const baseUrl = "ws://192.168.1.14:8080";
+const baseUrl = "ws://192.168.255.53:8080";
 //const baseUrl = "ws://172.16.2.38:8080";
 
 const StageParticipant = ({ participant }) => {
@@ -95,9 +100,9 @@ const StageParticipant = ({ participant }) => {
   );
 };
 
-const BottomButton = ({onPress, isHost}) => {
+const BottomButton = ({ onPress, isHost }) => {
   const buttonType = isHost ? "Add user" : "Join waitlist";
-  return(
+  return (
     <View
       style={{
         marginTop: "auto",
@@ -113,16 +118,13 @@ const BottomButton = ({onPress, isHost}) => {
       }}
     >
       <TouchableOpacity>
-        <Text
-          onPress={onPress}
-          style={{ color: "white", fontSize: 20 }}
-        >
+        <Text onPress={onPress} style={{ color: "white", fontSize: 20 }}>
           {buttonType}
         </Text>
       </TouchableOpacity>
     </View>
   );
-}
+};
 
 const WaitlistModal = ({ visible, onClose, roomId, onAddToStage }) => {
   const [waitlist, setWaitlist] = useState([]);
@@ -219,19 +221,25 @@ const VideoCall = () => {
   // refs
   const socketRef = useRef();
   const streamRef = useRef();
+  const peerRef = useRef();
   const { user } = useAuthContext();
 
   const [roomData, setRoomData] = useState({});
 
-  firebase.firestore().collection("rooms").doc(roomId).get().then((doc) => {
-    setRoomData(doc.data());
-  });
-  
+  firebase
+    .firestore()
+    .collection("rooms")
+    .doc(roomId)
+    .get()
+    .then((doc) => {
+      setRoomData(doc.data());
+    });
 
   const onBottomButtonPressed = async () => {
     console.log("pressed");
     const isHost = roomData.host === user.auth.uid;
     if (isHost) {
+      console.log("is host");
       setWaitlistModalVisible(true);
     } else {
       socketRef.current.emit("JOIN_WAITLIST", {
@@ -257,7 +265,7 @@ const VideoCall = () => {
         audio: true,
         video: false,
       })
-      .then((stream) => {
+      .then(async (stream) => {
         streamRef.current = stream;
       });
     // on joining the room
@@ -269,10 +277,10 @@ const VideoCall = () => {
 
     // on receiving the peer acknowledgement
     // from another peer
-    socketRef.current.on("R_SEND_SIG", ({ signal, senderSocketId }) => {
+    socketRef.current.on("R_SEND_SIG", async ({ signal, senderSocketId }) => {
       console.log("RECEIVED SEND SIGNAL FROM " + senderSocketId + "◀️◀️◀️◀️");
       // join the peer request from the participant
-      const peer = addPeerConnectionWithParticipant({
+      const peer = await addPeerConnectionWithParticipant({
         incomingSignal: signal,
         senderSocketId: senderSocketId,
       });
@@ -286,7 +294,11 @@ const VideoCall = () => {
         }
         newParticipants.push(participant);
       });
+      console.log("OLD PARTICIPANTS", participants);
       setParticipants(newParticipants);
+      
+
+
     });
 
     socketRef.current.on("R_RTRN_SIG", ({ receiverSocketId, signal }) => {
@@ -297,57 +309,121 @@ const VideoCall = () => {
       let newMemberPeers = [];
       memberPeers.forEach((member) => {
         if (member.socketId === receiverSocketId) {
-          member.peer.signal(signal);
+          const answerSignal = new RTCSessionDescription(signal);
+          member.peer.setRemoteDescription(answerSignal);
         }
         newMemberPeers.push(member);
       });
       setMemberPeers(newMemberPeers);
-    });
-    return () => socketRef.current.disconnect();
-  }, []);
-
-  const createPeerConnectionWithMember = ({ memberSocketId }) => {
-    console.log('ljljljl');
-    const peer = new SimplePeer({
-      initiator: true,
-      trickle: false,
-    });
-    peer.addStream(streamRef.current);
-    console.log(
-      "TRYING TO CREATE PEER WITH MEMBER WITH SOCKET ID " + memberSocketId
-    );
-    peer.on("signal", (signal) => {
-      console.log("SENDING SEIGNAL TO " + memberSocketId + "▶️▶️▶️▶️");
-      socketRef.current.emit("SEND_SIG", {
-        receiverSocketId: memberSocketId,
-        signal: signal,
+      let newParticipants = [];
+      participants.forEach((participant) => {
+        if (participant.socketId === receiverSocketId) {
+          const answerSignal = new RTCSessionDescription(signal);
+          participant.peer.setRemoteDescription(answerSignal);
+        }
+        newParticipants.push(participant);
       });
     });
 
-    return peer;
+    socketRef.current.on("R_ICE_CANDIDATE", ({ senderSocketId, candidate }) => {
+      console.log("RECEIVED ICE CANDIDATE FROM " + senderSocketId + "◀️◀️◀️◀️");
+      // update peer instance for the member
+      let newMemberPeers = [];
+      memberPeers.forEach((member) => {
+        if (member.socketId === senderSocketId) {
+          member.peer.addIceCandidate(candidate);
+        }
+        newMemberPeers.push(member);
+      });
+      setMemberPeers(newMemberPeers);
+      let newParticipants = [];
+      participants.forEach((participant) => {
+        if (participant.socketId === senderSocketId) {
+          participant.peer.addIceCandidate(candidate);
+        }
+        newParticipants.push(participant);
+      });
+      setParticipants(newParticipants);
+    });
+    return () => {
+      participants.forEach((participant) => {
+        participant.peer.destroy();
+      });
+      socketRef.current.disconnect();
+      streamRef.current.getAudioTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  const createPeerConnectionWithMember = async ({ memberSocketId }) => {
+    console.log("CREATED OFFER FOR " + memberSocketId + " ▶️▶️▶️▶️");
+    let peerConnection = new RTCPeerConnection(iceServerConfig);
+    streamRef.current.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, streamRef.current);
+    });
+    const offerSignal = await peerConnection.createOffer({
+      mandatory: {
+        OfferToReceiveAudio: true,
+        OfferToReceiveVideo: false,
+        VoiceActivityDetection: true,
+      },
+    });
+    console.log('OFFER SIGNAL ' + offerSignal + ' ✉️✉️✉️✉️');
+
+    peerConnection.addEventListener("ICE_CANDIDATE", (event) => {
+      console.log("ICE CANDIDATE ", event.candidate + " ❄️❄️❄️❄️");
+      if (event.candidate) {
+        socketRef.current.emit("ICE_CANDIDATE ", {
+          receiverSocketId: memberSocketId,
+          candidate: event.candidate,
+        });
+      }
+    });
+
+    await peerConnection.setLocalDescription(offerSignal);
+    console.log("LOCAL DESCRIPTION SET ✅✅✅✅");
+
+    console.log("SENDING SEIGNAL TO " + memberSocketId + "▶️▶️▶️▶️");
+    socketRef.current.emit("SEND_SIG", {
+      receiverSocketId: memberSocketId,
+      signal: offerSignal,
+    });
+    return peerConnection;
   };
 
-  const addPeerConnectionWithParticipant = ({
+  const addPeerConnectionWithParticipant = async ({
     incomingSignal,
     senderSocketId,
   }) => {
-    const peer = new SimplePeer({
-      initiator: false,
-      trickle: false,
+    console.log("OFFER --------> ", incomingSignal);
+    const peerConnection = new RTCPeerConnection(iceServerConfig);
+    streamRef.current.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, streamRef.current);
+    });
+    const offerSignal = new RTCSessionDescription(incomingSignal);
+    await peerConnection.setRemoteDescription(offerSignal);
+
+    const answerSignal = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answerSignal);
+
+    peerConnection.addEventListener("icecandidate", (event) => {
+      console.log("ICE CANDIDATE ", event.candidate);
+      if (event.candidate) {
+        socketRef.current.emit("ICE_CANDIDATE", {
+          receiverSocketId: senderSocketId,
+          candidate: event.candidate,
+        });
+      }
     });
 
-    peer.on("signal", (signal) => {
-      socketRef.current.emit("RTRN_SIG", {
-        signal: signal,
-        senderSocketId: senderSocketId,
-      });
+    console.log("SENDING RETURNED SIGNAL TO " + senderSocketId + " ▶️▶️▶️▶️");
+    socketRef.current.emit("RTRN_SIG", {
+      signal: answerSignal,
+      senderSocketId: senderSocketId,
     });
 
-    peer.signal(incomingSignal);
-    return peer;
+    return peerConnection;
   };
-
-  const fetchMembersList = async () => {};
 
   useEffect(() => {
     // subscribe to changes in participant list
@@ -356,7 +432,7 @@ const VideoCall = () => {
       .collection("rooms")
       .doc(roomId)
       .collection("onstage")
-      .onSnapshot((snap) => {
+      .onSnapshot(async (snap) => {
         let newParticipants = [];
         let newMemberPeers = [];
 
@@ -376,7 +452,7 @@ const VideoCall = () => {
             (participant) => participant.userId === user.auth.uid
           )
         ) {
-          console.log("in new participant");
+          console.log("In new participant");
           // fetch members list
           firebase
             .firestore()
@@ -385,24 +461,28 @@ const VideoCall = () => {
             .get()
             .then((doc) => {
               const members = doc.data().members;
-              console.log(doc.data().members);
+
               // send peer connection request to each member and create peer
               // instance for each member except the current user
-              Object.keys(members).forEach((userId) => {
-                console.log(userId, members[userId]);
+              Object.keys(members).forEach(async (userId) => {
                 if (userId === user.auth.uid) return;
-                const peer = createPeerConnectionWithMember({
+                const peer = await createPeerConnectionWithMember({
                   memberSocketId: members[userId],
                 });
                 newMemberPeers.push({
-                  socketId: socketId,
+                  socketId: members[userId],
                   peer: peer,
                 });
               });
             });
           setMemberPeers(newMemberPeers);
         } else {
-          console.log("not in participant");
+          console.log("Not in participant");
+
+          // // mute the audio if not in stage
+          // await streamRef.current.getAudioTracks().forEach((track) => {
+          //   track.enabled = false;
+          // });
 
           // remove all member peers
           setMemberPeers([]);
@@ -412,18 +492,7 @@ const VideoCall = () => {
     return () => unsub();
   }, []);
 
-  const data = [
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-    { name: "sandhu waliya", join: "true" },
-  ];
+  const data = [{ name: "sandhu waliya", join: "true" }];
 
   return (
     <View style={styles.container}>
@@ -556,8 +625,10 @@ const VideoCall = () => {
               rohit sent the gift
             </Text>
           </View>
-          <BottomButton onPress={onBottomButtonPressed} isHost={roomData.host === user.auth.uid}>
-          </BottomButton>
+          <BottomButton
+            onPress={onBottomButtonPressed}
+            isHost={roomData.host === user.auth.uid}
+          ></BottomButton>
         </View>
         <View>
           <TouchableOpacity>
