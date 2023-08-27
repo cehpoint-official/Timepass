@@ -26,7 +26,8 @@ import { useRoute } from "@react-navigation/native";
 import Sound from "react-native-sound";
 
 const screenHeight = Dimensions.get("window").height;
-const baseUrl = "ws://192.168.255.53:8080";
+// const baseUrl = "ws://192.168.255.53:8080";
+const baseUrl = "ws://192.168.1.14:8080";
 //const baseUrl = "ws://172.16.2.38:8080";
 
 const StageParticipant = ({ participant }) => {
@@ -38,7 +39,7 @@ const StageParticipant = ({ participant }) => {
   useEffect(() => {
     if (user.auth.uid === userId) return;
     console.log("PARTICIPANT", participant, peer);
-    if (peer === undefined) return;
+    if (peer === undefined) return;peer
     peer.on("stream", (stream) => {
       console.log("stream", stream);
       ref.current.srcObject = stream;
@@ -226,14 +227,7 @@ const VideoCall = () => {
 
   const [roomData, setRoomData] = useState({});
 
-  firebase
-    .firestore()
-    .collection("rooms")
-    .doc(roomId)
-    .get()
-    .then((doc) => {
-      setRoomData(doc.data());
-    });
+  
 
   const onBottomButtonPressed = async () => {
     console.log("pressed");
@@ -259,7 +253,19 @@ const VideoCall = () => {
   };
 
   useEffect(() => {
+    console.log('\x1b[36m'+'#%s\x1b[0m', participants)
+  }, [participants]);
+
+  useEffect(() => {
     socketRef.current = io.connect(baseUrl);
+    firebase
+    .firestore()
+    .collection("rooms")
+    .doc(roomId)
+    .get()
+    .then((doc) => {
+      setRoomData(doc.data());
+    });
     mediaDevices
       .getUserMedia({
         audio: true,
@@ -290,14 +296,14 @@ const VideoCall = () => {
       // update peer instance for the participant
       participants.forEach((participant) => {
         if (participant.socketId === senderSocketId) {
-          participant.peer = peer;
+          participant = {...participant, peer: peer};
         }
         newParticipants.push(participant);
       });
       console.log("OLD PARTICIPANTS", participants);
+      console.log("NEW PARTICIPANTS", newParticipants);
       setParticipants(newParticipants);
-      
-
+      console.log('\x1b[31m'+'#%s\x1b[0m', newParticipants)
 
     });
 
@@ -323,6 +329,8 @@ const VideoCall = () => {
         }
         newParticipants.push(participant);
       });
+      console.log(`\x1b[${color}m${str}\x1b[0m`, 32, newParticipants)
+      setParticipants(newParticipants);
     });
 
     socketRef.current.on("R_ICE_CANDIDATE", ({ senderSocketId, candidate }) => {
@@ -331,7 +339,10 @@ const VideoCall = () => {
       let newMemberPeers = [];
       memberPeers.forEach((member) => {
         if (member.socketId === senderSocketId) {
-          member.peer.addIceCandidate(candidate);
+          member = {
+            ...member,
+            peer: member.peer.addIceCandidate(candidate)
+          };
         }
         newMemberPeers.push(member);
       });
@@ -339,10 +350,14 @@ const VideoCall = () => {
       let newParticipants = [];
       participants.forEach((participant) => {
         if (participant.socketId === senderSocketId) {
-          participant.peer.addIceCandidate(candidate);
+          participant = {
+            ...participant,
+            peer: participant.peer.addIceCandidate(candidate)
+          };
         }
         newParticipants.push(participant);
       });
+      console.log('\x1b[35m'+'#%s\x1b[0m', newParticipants)
       setParticipants(newParticipants);
     });
     return () => {
@@ -462,6 +477,8 @@ const VideoCall = () => {
             .then((doc) => {
               const members = doc.data().members;
 
+              console.log("PPPPPPPPPPPPPPPPPPPPPPPPP",newMemberPeers);
+
               // send peer connection request to each member and create peer
               // instance for each member except the current user
               Object.keys(members).forEach(async (userId) => {
@@ -487,12 +504,13 @@ const VideoCall = () => {
           // remove all member peers
           setMemberPeers([]);
         }
+        console.log(newParticipants);
         setParticipants(newParticipants);
       });
     return () => unsub();
   }, []);
 
-  const data = [{ name: "sandhu waliya", join: "true" }];
+  const data = [{ name: "Mislah", join: "true" }];
 
   return (
     <View style={styles.container}>
@@ -602,7 +620,7 @@ const VideoCall = () => {
               <Text style={{ color: "gold", marginBottom: 10, marginLeft: 5 }}>
                 {item.name}
               </Text>
-              <Text style={{ color: "white" }}>Joined the waitlist</Text>
+              <Text style={{ color: "white" }}>Created the room</Text>
             </View>
           ))}
         </View>
