@@ -89,7 +89,7 @@ const GroupCall2 = () => {
           hostName: doc.data().name,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then((res) => {
-          navigation.navigate('VideoCall', { roomId: res.id });
+          navigation.navigate('VideoCall', { roomId: res.id, host: user.auth.uid, hostName: doc.data().name});
         });
       } else {
         setModalVisible(true);
