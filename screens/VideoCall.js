@@ -1,54 +1,71 @@
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  Dimensions,
+} from "react-native";
 import iceServerConfig from "../iceServersConfig";
 import React, { useState, useEffect, useRef } from "react";
 import Icon from "react-native-vector-icons/FontAwesome";
 import Gifts from "./components/gifts";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
-import { mediaDevices, RTCPeerConnection, RTCSessionDescription } from "react-native-webrtc";
+import {
+  mediaDevices,
+  MediaStream,
+  RTCPeerConnection,
+  RTCSessionDescription,
+  RTCView,
+} from "react-native-webrtc";
 import io from "socket.io-client";
 import { useAuthContext } from "../providers/AuthProvider";
 import { useRoute } from "@react-navigation/native";
 import Sound from "react-native-sound";
 
+import { ToastAndroid } from "react-native";
+const toast = (message) => {
+  ToastAndroid.showWithGravityAndOffset(
+    message,
+    ToastAndroid.LONG,
+    ToastAndroid.BOTTOM,
+    25, // x offset
+    50 // y offset
+  );
+};
+
 const baseUrl = "ws://192.168.1.14:8080";
 
 const StageParticipant = ({ participant }) => {
-  const { name, peer, socketId, userId } = participant;
   const { user } = useAuthContext();
   const ref = useRef();
   const soundRef = useRef();
+  const streamRef = useRef(new MediaStream());
 
   useEffect(() => {
-    if (user.auth.uid === userId) return;
-    console.log("PARTICIPANT", participant, peer);
-    if (peer === undefined) return; peer
-    peer.on("stream", (stream) => {
-      console.log("stream", stream);
-      ref.current.srcObject = stream;
-      soundRef.current = new Sound(ref.current, null, (err) => {
-        if (err) {
-          console.log("Error loading sound");
-        } else {
-          soundRef.current.play((success) => {
-            if (success) {
-              console.log("Successfully finished playing");
-            } else {
-              console.log("Playback failed");
-            }
-          });
-        }
-      });
-    });
+    if (participant === undefined || participant === null) return;
+    if (user.auth.uid === participant.userId) return;
+    console.log("PARTICIPANT", participant);
+    if (participant.peer === undefined) return;
+    console.log("PARTICIPANT", participant.peer);
+
+    // participant.peer.on("stream", (event) => {
+    //   console.log("track", event.track);
+    //   streamRef.current.addTrack(event.track, streamRef.current);
+    // });
     return () => {
-      if (this.sound) {
-        this.sound.stop(() => {
+      if (soundRef.current) {
+        soundRef.current.stop(() => {
           console.log("Sound stopped");
         });
       }
     };
-  }, [peer]);
+  }, [participant]);
   return (
     <View ref={ref} style={styles.box1}>
+      <RTCView streamURL={streamRef.current.toURL()}></RTCView>
       <View
         style={{
           width: 100,
@@ -68,7 +85,7 @@ const StageParticipant = ({ participant }) => {
         <Icon name="microphone-slash" size={70} color="grey" />
       </View>
       <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
-        {name}
+        name
       </Text>
       <View style={styles.deletemic}>
         <Icon name="microphone" size={20} color="rgba(255,255,255,.8)" />
@@ -84,7 +101,7 @@ const StageParticipant = ({ participant }) => {
 };
 
 const WaitlistModal = ({ visible, onClose, waitlist, onAddToStage }) => {
-   return (
+  return (
     <Modal
       animationType="slide"
       transparent={true}
@@ -131,7 +148,9 @@ const WaitlistModal = ({ visible, onClose, waitlist, onAddToStage }) => {
                 marginBottom: 10,
               }}
             >
-              <Text style={{ fontSize: 18, color: "black" }}>{waitlist[item].name}</Text>
+              <Text style={{ fontSize: 18, color: "black" }}>
+                {waitlist[item].name}
+              </Text>
               <TouchableOpacity
                 onPress={() => {
                   onAddToStage(item);
@@ -159,22 +178,111 @@ const VideoCall = () => {
   // const [memberPeers, setMemberPeers] = useState([]);
   // const [participants, setParticipants] = useState([]);
 
+  const updateMembers = ({ socketId, peer, type }) => {
+    if (members.find((member) => member.socketId === socketId)) {
+      setMembers((prev) => {
+        return prev.map((member) => {
+          if (member.socketId === socketId) {
+            return { ...member, peer: peer };
+          }
+          return member;
+        });
+      });
+    } else {
+      setMembers((prev) => [
+        ...prev,
+        { socketId: socketId, peer: peer, type: type },
+      ]);
+    }
+  };
+
   // // refs
   const socketRef = useRef();
-  // const streamRef = useRef();
+  const isFirstTime = useRef(false);
+  const streamRef = useRef(new MediaStream());
   // const peerRef = useRef();
-  const [onstage, setOnstage] = useState(false);
+  const [members, setMembers] = useState([]);
   const { user } = useAuthContext();
   const [waitlist, setWaitlist] = useState({});
   // const [roomData, setRoomData] = useState({});
+
+  const createPeerConnectionWithMember = async ({ memberSocketId }) => {
+    console.log("CREATED OFFER FOR " + memberSocketId + " ▶️▶️▶️▶️");
+    let peerConnection = new RTCPeerConnection(iceServerConfig);
+    streamRef.current.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, streamRef.current);
+    });
+    const offerSignal = await peerConnection.createOffer({
+      mandatory: {
+        OfferToReceiveAudio: true,
+        OfferToReceiveVideo: false,
+        VoiceActivityDetection: true,
+      },
+    });
+    console.log("OFFER SIGNAL " + offerSignal + " ✉️✉️✉️✉️");
+
+    peerConnection.addEventListener("icecandidate", (event) => {
+      console.log("ICE CANDIDATE ", event.candidate + " ❄️❄️❄️❄️");
+      if (event.candidate) {
+        socketRef.current.emit("ICE_CANDIDATE ", {
+          receiverSocketId: memberSocketId,
+          candidate: event.candidate,
+        });
+      }
+    });
+
+    await peerConnection.setLocalDescription(offerSignal);
+    console.log("LOCAL DESCRIPTION SET ✅✅✅✅");
+
+    console.log("SENDING SEIGNAL TO " + memberSocketId + "▶️▶️▶️▶️");
+    socketRef.current.emit("SEND_SIG", {
+      receiverSocketId: memberSocketId,
+      signal: offerSignal,
+    });
+    return peerConnection;
+  };
+
+  const addPeerConnectionWithParticipant = async ({
+    incomingSignal,
+    senderSocketId,
+  }) => {
+    console.log("OFFER --------> ", incomingSignal);
+    const peerConnection = new RTCPeerConnection(iceServerConfig);
+    streamRef.current.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, streamRef.current);
+    });
+    const offerSignal = new RTCSessionDescription(incomingSignal);
+    await peerConnection.setRemoteDescription(offerSignal);
+
+    const answerSignal = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answerSignal);
+
+    peerConnection.addEventListener("icecandidate", (event) => {
+      console.log("ICE CANDIDATE ", event.candidate);
+      if (event.candidate) {
+        socketRef.current.emit("ICE_CANDIDATE", {
+          receiverSocketId: senderSocketId,
+          candidate: event.candidate,
+        });
+      }
+    });
+
+    console.log("SENDING RETURNED SIGNAL TO " + senderSocketId + " ▶️▶️▶️▶️");
+    socketRef.current.emit("RTRN_SIG", {
+      signal: answerSignal,
+      senderSocketId: senderSocketId,
+    });
+
+    return peerConnection;
+  };
 
   const onBottomButtonPressed = async () => {
     console.log("Bottom button pressed");
     const isHost = room.host === user.auth.uid;
     const userData = {
       userId: user.auth.uid,
-      ...user.profile
-    }
+      ...user.profile,
+    };
     if (isHost) {
       setWaitlistModalVisible(true);
     } else {
@@ -195,51 +303,139 @@ const VideoCall = () => {
 
   useEffect(() => {
     socketRef.current = io.connect(baseUrl);
+    socketRef.current.onAny((event, ...args) => {
+      toast("RECV: " + event + " 🟠");
+    });
+    socketRef.current.onAnyOutgoing((event, ...args) => {
+      toast("SEND: " + event + " 🟢");
+    });
+
     const userData = {
       userId: user.auth.uid,
-      name: user.profile.name
-    }
-    joinRoom(room.roomId, userData);
+      name: user.profile.name,
+    };
 
-    socketRef.current.on("PROMOTED", (members) => {
-      setOnstage(true);
-      // TODO: SEND OFFER TO ALL MEMBERS EXCEPT ONSTAGE
-      // TODO: ADD AUDIOSTREAM TO THOSE MEMBERS ONSTAGE
-    })
+    mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      streamRef.current = stream;
+      joinRoom(room.roomId, userData);
 
-    socketRef.current.on("NEW_MEMBER", (userData) => {
-      if (onstage) {
+      socketRef.current.on("PROMOTED", (members) => {
+        setOnstage(true);
+        // TODO: SEND OFFER TO ALL MEMBERS EXCEPT ONSTAGE
+        // TODO: ADD AUDIOSTREAM TO THOSE MEMBERS ONSTAGE
+      });
+
+      socketRef.current.on("NEW_MEMBER", (userData) => {
+        console.log(">>>>>>>>>>>>>>>>>>>>>> ", userData);
+        // if (onstage) {
         // TODO: SEND OFFER TO NEW USER IF YOU ARE ONSTAGE MEMBER
-      }
-    })
+        let peerConnection = createPeerConnectionWithMember({
+          memberSocketId: userData.socketId,
+        });
+        updateMembers({
+          socketId: userData.socketId,
+          peer: peerConnection,
+        });
 
-    socketRef.current.on("NEW_ONSTAGE_MEMBER", (userData) => {
-      // TODO: SHOW THE NEW MEMBER ON SCREEN
-    })
+        // setMembers((prev) => [...prev, newMember]);
+        // }
+      });
 
-    // NOTE: Only for host
-    socketRef.current.on("WAITLIST_UPDATED", (waitlist) => {
-      setWaitlist(waitlist);
+      socketRef.current.on("NEW_ONSTAGE_MEMBER", (userData) => {
+        // TODO: SHOW THE NEW MEMBER ON SCREEN
+      });
+
+      // NOTE: Only for host
+      socketRef.current.on("WAITLIST_UPDATED", (waitlist) => {
+        setWaitlist(waitlist);
+      });
+
+      // on receiving the peer acknowledgement
+      // from another peer
+      socketRef.current.on("R_SEND_SIG", async ({ signal, senderSocketId }) => {
+        console.log("RECEIVED SEND SIGNAL FROM " + senderSocketId + "◀️◀️◀️◀️");
+        // join the peer request from the participant
+        const peerConnection = await addPeerConnectionWithParticipant({
+          incomingSignal: signal,
+          senderSocketId: senderSocketId,
+        });
+        console.log("\x1b[31m" + "#%s\x1b[0m Before: ", members);
+        updateMembers({
+          socketId: senderSocketId,
+          peer: peerConnection,
+        });
+        // if not empty
+        // if (newMembers !== []) setMembers(newMembers);
+        console.log("\x1b[31m" + "#%s\x1b[0mAfter: ", members);
+      });
+
+      socketRef.current.on("R_RTRN_SIG", ({ receiverSocketId, signal }) => {
+        console.log(
+          "RECEIVED RETURNED SIGNAL FROM " + receiverSocketId + "◀️◀️◀️◀️"
+        );
+
+        updateMembers((prev) => ({
+          socketId: receiverSocketId,
+          peer: prev
+            .find((member) => member.socketId === receiverSocketId)
+            .peer.setRemoteDescription(signal),
+        }));
+      });
+
+      socketRef.current.on(
+        "R_ICE_CANDIDATE",
+        ({ senderSocketId, candidate }) => {
+          console.log(
+            "RECEIVED ICE CANDIDATE FROM " + senderSocketId + "◀️◀️◀️◀️"
+          );
+          // update peer instance for the member
+          updateMembers({
+            socketId: senderSocketId,
+            peer: members
+              .find((member) => member.socketId === senderSocketId)
+              .peer.addIceCandidate(candidate),
+          });
+          // setMembers(newembers);
+        }
+      );
     });
 
     return () => {
-      socketRef.current.emit("LEAVE_ROOM", { roomId: room.roomId, userId: user.auth.uid });
+      socketRef.current.emit("LEAVE_ROOM", {
+        roomId: room.roomId,
+        userId: user.auth.uid,
+      });
       socketRef.current.disconnect();
-      console.log("DISCONNECTED")
-    }
+      console.log("DISCONNECTED");
+    };
   }, []);
 
-  const joinRoom = async (roomId, userData) => {
+  const joinRoom = (roomId, userData) => {
     socketRef.current.emit("JOIN_ROOM", { roomId, userData });
 
-    socketRef.current.on("MEMBERS", (members) => {
-      // NOTE: not important, if you want you may store
+    socketRef.current.on("MEMBERS", async (allMembers) => {
+      console.log("&&&&>>>>>>>>>>>>>>>>>>>>>", allMembers);
+      isFirstTime.current = true;
+      allMembers.forEach((member) => {
+        updateMembers({
+          socketId: member.socketId,
+          type: member.type,
+          peer: null,
+        });
+      });
+      console.log("####>>>>>>>>>>>>>>>>>>>>>", members);
     });
+  };
 
-    // TODO: ACCEPT PEER CONNECTION FROM ONSTAGE MEMBERS
-  }
+  useEffect(() => {
+    if (isFirstTime.current) {
+      console.log("^$$$$$$$$$$$$", members);
+      socketRef.current.emit("RECIEVED_MEMBERS");
+      isFirstTime.current = false;
+    }
+  }, [members]);
 
-  const participants = [{ name: "Mislah", role: "male" }]
+  const participants = [{ name: "Mislah", role: "male" }];
   const data = [{ name: "Mislah", join: "true" }];
 
   return (
@@ -282,47 +478,27 @@ const VideoCall = () => {
           200.00k
         </Text>
       </View>
-      <View
-        style={{
-          width: "98%",
-          height: 200,
-          backgroundColor: " rgba(255, 255, 255, 0.2)",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <View
-          style={{
-            width: 120,
-            height: 120,
-            borderRadius: 60,
-            backgroundColor: "black",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Image
-            style={{ width: 80, height: 80 }}
-            source={require("../assets/images/avatar.png")}
-          />
-        </View>
-        <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
-          {room.hostName}
-        </Text>
-        <Icon name={"heart-o"} size={25} color="pink" />
-      </View>
-
+      {/* . */}
+      {!room.host && (
+        <StageParticipant
+          key={1}
+          participant={members.find(
+            (participant) => participant.type === "influencer"
+          )}
+        />
+      )}
       <View style={{ flexDirection: "row" }}>
-        {participants.find((participant) => participant.type === "female") && (
+        {(console.log(">>>>>>>>>", members) || 1) &&
+          members.find((participant) => participant.type === "female") && (
+            <StageParticipant
+              participant={members.find(
+                (participant) => participant.type === "female"
+              )}
+            />
+          )}
+        {members.find((participant) => participant.type === "male") && (
           <StageParticipant
-            participant={participants.find(
-              (participant) => participant.type === "female"
-            )}
-          />
-        )}
-        {participants.find((participant) => participant.type === "male") && (
-          <StageParticipant
-            participant={participants.find(
+            participant={members.find(
               (participant) => participant.type === "male"
             )}
           />
