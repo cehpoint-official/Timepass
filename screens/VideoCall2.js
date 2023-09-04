@@ -48,8 +48,7 @@ const VideoCall = () => {
   const [localStream, setLocalStream] = useState(new MediaStream());
   const [remoteStream, setRemoteStream] = useState(new MediaStream());
   const [roomId, setRoomId] = useState();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [roomIdInput, setRoomIdInput] = useState("");
+  const [roomIdInput, setRoomIdInput] = useState("1234");
   const [db, setDb] = useState();
   const [onCall, setOnCall] = useState(false);
 
@@ -61,38 +60,41 @@ const VideoCall = () => {
   }, []);
 
   const openUserMedia = async () => {
-    let isFront = true;
-    const sourceInfos = await mediaDevices.enumerateDevices();
-    console.log("Source infos: ", sourceInfos);
+    return new Promise(async (resolve) => {
+      let isFront = true;
+      const sourceInfos = await mediaDevices.enumerateDevices();
+      console.log("Source infos: ", sourceInfos);
 
-    let videoSourceId;
-    for (let i = 0; i < sourceInfos.length; i++) {
-      const sourceInfo = sourceInfos[i];
-      if (
-        sourceInfo.kind == "videoinput" &&
-        sourceInfo.facing == (isFront ? "front" : "environment")
-      ) {
-        videoSourceId = sourceInfo.deviceId;
+      let videoSourceId;
+      for (let i = 0; i < sourceInfos.length; i++) {
+        const sourceInfo = sourceInfos[i];
+        if (
+          sourceInfo.kind == "videoinput" &&
+          sourceInfo.facing == (isFront ? "front" : "environment")
+        ) {
+          videoSourceId = sourceInfo.deviceId;
+        }
       }
-    }
 
-    const stream = await mediaDevices.getUserMedia({
-      audio: true,
-      video: {
-        mandatory: {
-          minWidth: 500,
-          minHeight: 300,
-          minFrameRate: 30,
+      const stream = await mediaDevices.getUserMedia({
+        audio: true,
+        video: {
+          mandatory: {
+            minWidth: 500,
+            minHeight: 300,
+            minFrameRate: 30,
+          },
+          facingMode: isFront ? "user" : "environment",
+          optional: videoSourceId ? [{ sourceId: videoSourceId }] : [],
         },
-        facingMode: isFront ? "user" : "environment",
-        optional: videoSourceId ? [{ sourceId: videoSourceId }] : [],
-      },
-    });
+      });
 
-    console.log("Stream: ", JSON.stringify(stream));
-    await setLocalStream(stream);
-    console.log("Local stream: ", JSON.stringify(localStream));
-    return stream;
+      console.log("Stream: ", JSON.stringify(stream));
+      await setLocalStream(stream);
+      console.log("Local stream: ", JSON.stringify(localStream));
+      resolve(stream);
+    });
+    // return stream;
   };
 
   const createRoom = async () => {
@@ -176,16 +178,11 @@ const VideoCall = () => {
   };
 
   const joinRoom = async () => {
-    setRoomIdInput(PermenantRoomId);
-    console.log("Join room clicked");
-    setModalVisible(true);
-    await openUserMedia();
-  };
-
-  const joinRoomById = async () => {
+    stream = await openUserMedia();
+    // sleep 2 sec
+    // await new Promise((resolve) => setTimeout(resolve, 4000));
     console.log("Join room: ", roomIdInput);
     await setRoomId(roomIdInput);
-    setModalVisible(false);
     setOnCall(true);
 
     console.log(roomIdInput);
@@ -196,10 +193,10 @@ const VideoCall = () => {
     if (roomSnapshot.exists) {
       console.log("Create PeerConnection with configuration: ", configuration);
       registerPeerConnectionListeners();
-      console.log("Adding local stream to PC", JSON.stringify(localStream));
-      localStream
+      console.log("Adding local stream to PC", JSON.stringify(stream));
+      stream
         .getTracks()
-        .forEach((track) => peerConnection.addTrack(track, localStream));
+        .forEach((track) => peerConnection.addTrack(track, stream));
 
       // Code for collecting ICE candidates below
       const calleeCandidatesCollection = roomRef.collection("calleeCandidates");
@@ -354,15 +351,6 @@ const VideoCall = () => {
             style={styles.remoteVideo}
           />
         </View>
-        <Modal visible={modalVisible} animationType="slide">
-          <View style={styles.modalView}>
-            <AppButton
-              color="white"
-              title="Join Room"
-              onPress={() => joinRoomById(PermenantRoomId)}
-            />
-          </View>
-        </Modal>
       </SafeAreaView>
     </>
   );
