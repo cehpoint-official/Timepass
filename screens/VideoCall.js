@@ -36,7 +36,8 @@ const toast = (message) => {
   );
 };
 
-const baseUrl = "ws://192.168.1.14:8080";
+// const baseUrl = "ws://192.168.1.14:8080";
+const baseUrl = "https://timepass.cehpoint.co.in/";
 
 const StageParticipant = ({ participant }) => {
   const { user } = useAuthContext();
@@ -435,8 +436,7 @@ const VideoCall = () => {
     }
   }, [members]);
 
-  const participants = [{ name: "Mislah", role: "male" }];
-  const data = [{ name: "Mislah", join: "true" }];
+  const data = [{ name: room.hostName, join: "true" }];
 
   return (
     <View style={styles.container}>
@@ -526,7 +526,7 @@ const VideoCall = () => {
               <Text style={{ color: "gold", marginBottom: 10, marginLeft: 5 }}>
                 {item.name}
               </Text>
-              <Text style={{ color: "white" }}>Created the room</Text>
+              <Text style={{ color: "white" }}> created the room.</Text>
             </View>
           ))}
         </View>
